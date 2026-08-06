@@ -1,0 +1,182 @@
+import { SqlError } from "@effect/sql";
+import { Clock, Context, Effect, Layer } from "effect";
+import type {
+  CredentialSubmission,
+  Practitioner,
+  PractitionerRegistration,
+} from "@/domain/practitioner/practitioner";
+import {
+  FileInfected,
+  LicenceAlreadyRegistered,
+  NotFound,
+  ProfileIncomplete,
+  ValidationFailed,
+  VerificationStateInvalid,
+} from "@/domain/shared/errors";
+import { Crypto } from "@/infra/crypto";
+import { IdGenerator } from "@/infra/ids";
+import { FileScanner } from "@/infra/scanner";
+import { FileStorage, type PresignedUpload, type StorageError } from "@/infra/storage";
+import { PractitionerRepo } from "./practitioner.repo";
+
+type DocumentKind = "cmc-certificate" | "nic" | "profile-photo";
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const DOC_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const ALLOWED_CONTENT_TYPES: Record<DocumentKind, ReadonlyArray<string>> = {
+  "cmc-certificate": DOC_TYPES,
+  nic: DOC_TYPES,
+  "profile-photo": ["image/jpeg", "image/png"],
+};
+const KEY_PREFIX: Record<DocumentKind, string> = {
+  "cmc-certificate": "practitioner-documents",
+  nic: "practitioner-documents",
+  "profile-photo": "profile-photos",
+};
+
+export interface PractitionerServiceService {
+  readonly register: (
+    userId: string,
+    role: "doctor" | "nurse",
+    input: PractitionerRegistration,
+  ) => Effect.Effect<Practitioner, SqlError.SqlError>;
+  readonly presignDocument: (
+    userId: string,
+    kind: DocumentKind,
+    contentType: string,
+  ) => Effect.Effect<PresignedUpload, ValidationFailed | StorageError>;
+  readonly submitCredentials: (
+    userId: string,
+    input: CredentialSubmission,
+  ) => Effect.Effect<
+    Practitioner,
+    | ProfileIncomplete
+    | VerificationStateInvalid
+    | FileInfected
+    | LicenceAlreadyRegistered
+    | SqlError.SqlError
+  >;
+  readonly getMine: (userId: string) => Effect.Effect<Practitioner, NotFound | SqlError.SqlError>;
+}
+
+export class PractitionerService extends Context.Tag("PractitionerService")<
+  PractitionerService,
+  PractitionerServiceService
+>() {}
+
+export const PractitionerServiceLive = Layer.effect(
+  PractitionerService,
+  Effect.gen(function* () {
+    const repo = yield* PractitionerRepo;
+    const ids = yield* IdGenerator;
+    const crypto = yield* Crypto;
+    const scanner = yield* FileScanner;
+    const storage = yield* FileStorage;
+
+    return {
+      register: (userId, role, input) =>
+        Effect.gen(function* () {
+          const id = yield* ids.next;
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const created = yield* repo.create({
+            id,
+            userId,
+            professionId: input.professionId,
+            prefix: input.prefix ?? null,
+            surname: input.surname,
+            givenNames: input.givenNames,
+            phone: input.phone ?? null,
+            dateOfBirth: input.dateOfBirth ?? null,
+            sex: input.sex ?? null,
+            location: input.location ?? null,
+            verificationStatus: "incomplete",
+            consentAcceptedAt: now,
+            consentVersion: input.consentVersion,
+          });
+          yield* repo.grantRole(userId, role);
+          return created;
+        }),
+
+      presignDocument: (userId, kind, contentType) =>
+        Effect.gen(function* () {
+          if (!ALLOWED_CONTENT_TYPES[kind].includes(contentType)) {
+            return yield* Effect.fail(
+              new ValidationFailed({
+                issues: [{ path: "contentType", message: "Unsupported content type." }],
+              }),
+            );
+          }
+          const uuid = yield* ids.next;
+          return yield* storage.presignUpload({
+            key: `${KEY_PREFIX[kind]}/${userId}/${uuid}`,
+            contentType,
+            maxBytes: MAX_UPLOAD_BYTES,
+          });
+        }),
+
+      submitCredentials: (userId, input) =>
+        Effect.gen(function* () {
+          const existing = yield* repo.findByUserId(userId);
+          if (existing === undefined) {
+            return yield* Effect.fail(new ProfileIncomplete({ resource: "Practitioner" }));
+          }
+          // Resubmission is for incomplete/rejected (and idempotently pending)
+          // profiles; a verified practitioner can't silently reset themselves to
+          // pending and swap their already-approved credentials.
+          if (existing.verificationStatus === "verified") {
+            return yield* Effect.fail(
+              new VerificationStateInvalid({ current: existing.verificationStatus }),
+            );
+          }
+          const keys = [input.cmcCertificateFileKey, input.nicFileKey, input.profilePhotoFileKey];
+          yield* Effect.forEach(keys, (key) =>
+            scanner
+              .status(key)
+              .pipe(
+                Effect.flatMap((status) =>
+                  status === "infected" ? Effect.fail(new FileInfected({ key })) : Effect.void,
+                ),
+              ),
+          );
+          const cmcHmac = crypto.hmac(input.cmcRegistrationNumber);
+          const nicHmac = crypto.hmac(input.nicNumber);
+          const conflict = yield* repo.hasConflictingHmac(userId, cmcHmac, nicHmac);
+          if (conflict) {
+            return yield* Effect.fail(new LicenceAlreadyRegistered({ field: "cmc/nic" }));
+          }
+          const cmcNumberEncrypted = yield* crypto.encrypt(input.cmcRegistrationNumber);
+          const nicNumberEncrypted = yield* crypto.encrypt(input.nicNumber);
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const updated = yield* repo.applyCredentials(userId, {
+            cmcNumberEncrypted,
+            cmcNumberHmac: cmcHmac,
+            nicNumberEncrypted,
+            nicNumberHmac: nicHmac,
+            cmcCertificateFileKey: input.cmcCertificateFileKey,
+            nicFileKey: input.nicFileKey,
+            profilePhotoFileKey: input.profilePhotoFileKey,
+            verificationStatus: "pending_verification",
+            updatedAt: now,
+          });
+          return updated === undefined
+            ? yield* Effect.fail(new ProfileIncomplete({ resource: "Practitioner" }))
+            : updated;
+        }),
+
+      getMine: (userId) =>
+        repo
+          .findByUserId(userId)
+          .pipe(
+            Effect.flatMap((found) =>
+              found === undefined
+                ? Effect.fail(new NotFound({ resource: "Practitioner profile" }))
+                : Effect.succeed(found),
+            ),
+          ),
+    } satisfies PractitionerServiceService;
+  }),
+);
