@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { verificationStatusEnum } from "./enums";
 import { profession } from "./profession";
@@ -17,6 +17,12 @@ export const practitionerProfile = pgTable("practitioner_profile", {
     .references(() => profession.id),
   prefix: text("prefix"),
   location: text("location"),
+  // Public/bookable profile — shown to patients once verified (no sensitive data).
+  specialty: text("specialty"),
+  bio: text("bio"),
+  languagesSpoken: text("languages_spoken").array(),
+  yearsExperience: integer("years_experience"),
+  consultationFeeXaf: integer("consultation_fee_xaf"),
   cmcNumberEncrypted: text("cmc_number_encrypted"),
   cmcNumberHmac: text("cmc_number_hmac").unique(),
   nicNumberEncrypted: text("nic_number_encrypted"),

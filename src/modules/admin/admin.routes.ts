@@ -25,6 +25,11 @@ const toResponse = (p: Practitioner) => ({
   dateOfBirth: p.dateOfBirth,
   sex: p.sex,
   location: p.location,
+  specialty: p.specialty,
+  bio: p.bio,
+  languagesSpoken: p.languagesSpoken === null ? null : [...p.languagesSpoken],
+  yearsExperience: p.yearsExperience,
+  consultationFeeXaf: p.consultationFeeXaf,
   verificationStatus: p.verificationStatus,
 });
 

@@ -4,6 +4,7 @@ import type {
   CredentialSubmission,
   Practitioner,
   PractitionerRegistration,
+  PublicProfilePatch,
 } from "@/domain/practitioner/practitioner";
 import {
   FileInfected,
@@ -62,6 +63,17 @@ export interface PractitionerServiceService {
     | SqlError.SqlError
   >;
   readonly getMine: (userId: string) => Effect.Effect<Practitioner, NotFound | SqlError.SqlError>;
+  readonly updatePublicProfile: (
+    userId: string,
+    patch: PublicProfilePatch,
+  ) => Effect.Effect<Practitioner, NotFound | SqlError.SqlError>;
+  /** A verified practitioner's public profile + presigned photo, for patients. */
+  readonly getPublic: (
+    id: string,
+  ) => Effect.Effect<
+    { readonly practitioner: Practitioner; readonly photoUrl: string | null },
+    NotFound | StorageError | SqlError.SqlError
+  >;
 }
 
 export class PractitionerService extends Context.Tag("PractitionerService")<
@@ -195,6 +207,29 @@ export const PractitionerServiceLive = Layer.effect(
                 : Effect.succeed(found),
             ),
           ),
+
+      updatePublicProfile: (userId, patch) =>
+        Effect.gen(function* () {
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const updated = yield* repo.updatePublic(userId, patch, now);
+          return updated === undefined
+            ? yield* Effect.fail(new NotFound({ resource: "Practitioner profile" }))
+            : updated;
+        }),
+
+      getPublic: (id) =>
+        Effect.gen(function* () {
+          const found = yield* repo.findById(id);
+          // Only verified practitioners are publicly listable.
+          if (found === undefined || found.verificationStatus !== "verified") {
+            return yield* Effect.fail(new NotFound({ resource: "Practitioner", id }));
+          }
+          const photoUrl =
+            found.profilePhotoFileKey === null
+              ? null
+              : yield* storage.presignDownload(found.profilePhotoFileKey);
+          return { practitioner: found, photoUrl };
+        }),
     } satisfies PractitionerServiceService;
   }),
 );

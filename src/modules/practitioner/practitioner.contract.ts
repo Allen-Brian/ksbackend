@@ -42,6 +42,14 @@ export const SubmitCredentialsBody = z
   })
   .openapi("SubmitCredentials");
 
+const publicFields = {
+  specialty: z.string().nullable(),
+  bio: z.string().nullable(),
+  languagesSpoken: z.array(z.string()).nullable(),
+  yearsExperience: z.number().int().nullable(),
+  consultationFeeXaf: z.number().int().nullable(),
+};
+
 export const PractitionerResponse = z
   .object({
     id: z.uuid(),
@@ -54,6 +62,33 @@ export const PractitionerResponse = z
     dateOfBirth: z.string().nullable(),
     sex: z.enum(["male", "female"]).nullable(),
     location: z.string().nullable(),
+    ...publicFields,
     verificationStatus: z.enum(["incomplete", "pending_verification", "verified", "rejected"]),
   })
   .openapi("Practitioner");
+
+export const UpdatePublicProfileBody = z
+  .object({
+    prefix: z.string().max(20).optional(),
+    location: z.string().max(200).optional(),
+    specialty: z.string().max(120).optional(),
+    bio: z.string().max(2000).optional(),
+    languagesSpoken: z.array(z.string().min(1).max(40)).max(10).optional(),
+    yearsExperience: z.number().int().min(0).max(80).optional(),
+    consultationFeeXaf: z.number().int().min(0).max(10_000_000).optional(),
+  })
+  .openapi("UpdatePublicProfile");
+
+// Public/bookable view — no phone/DOB/sex/identifiers.
+export const PublicPractitionerResponse = z
+  .object({
+    id: z.uuid(),
+    professionId: z.uuid(),
+    prefix: z.string().nullable(),
+    surname: z.string(),
+    givenNames: z.string(),
+    location: z.string().nullable(),
+    ...publicFields,
+    photoUrl: z.string().nullable(),
+  })
+  .openapi("PublicPractitioner");

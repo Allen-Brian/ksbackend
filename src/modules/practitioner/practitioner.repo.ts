@@ -6,7 +6,11 @@ import { user } from "@/db/schema/auth";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import { profile } from "@/db/schema/profile";
 import { verificationReview } from "@/db/schema/verification-review";
-import type { Practitioner, VerificationStatus } from "@/domain/practitioner/practitioner";
+import type {
+  Practitioner,
+  PublicProfilePatch,
+  VerificationStatus,
+} from "@/domain/practitioner/practitioner";
 import { parseRoles, type Role, serializeRoles } from "@/infra/auth";
 import type { Locale } from "@/infra/i18n";
 
@@ -27,6 +31,11 @@ const toDomain = (p: Row, base: ProfileRow): Practitioner => ({
   dateOfBirth: base.dateOfBirth,
   sex: base.sex,
   location: p.location,
+  specialty: p.specialty,
+  bio: p.bio,
+  languagesSpoken: p.languagesSpoken,
+  yearsExperience: p.yearsExperience,
+  consultationFeeXaf: p.consultationFeeXaf,
   cmcCertificateFileKey: p.cmcCertificateFileKey,
   nicFileKey: p.nicFileKey,
   profilePhotoFileKey: p.profilePhotoFileKey,
@@ -66,6 +75,11 @@ export interface PractitionerRepoService {
   readonly applyCredentials: (
     userId: string,
     patch: CredentialPatch,
+  ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
+  readonly updatePublic: (
+    userId: string,
+    patch: PublicProfilePatch,
+    updatedAt: Date,
   ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
   readonly findByIdWithSecrets: (
@@ -159,6 +173,37 @@ export const PractitionerRepoLive = Layer.effect(
         db
           .update(practitionerProfile)
           .set(patch)
+          .where(eq(practitionerProfile.userId, userId))
+          .pipe(
+            Effect.flatMap(() =>
+              joined()
+                .where(eq(practitionerProfile.userId, userId))
+                .limit(1)
+                .pipe(
+                  Effect.map((rows) =>
+                    rows[0] ? toDomain(rows[0].practitioner, rows[0].base) : undefined,
+                  ),
+                ),
+            ),
+          ),
+
+      updatePublic: (userId, patch, updatedAt) =>
+        db
+          .update(practitionerProfile)
+          .set({
+            ...(patch.prefix !== undefined && { prefix: patch.prefix }),
+            ...(patch.location !== undefined && { location: patch.location }),
+            ...(patch.specialty !== undefined && { specialty: patch.specialty }),
+            ...(patch.bio !== undefined && { bio: patch.bio }),
+            ...(patch.languagesSpoken !== undefined && {
+              languagesSpoken: [...patch.languagesSpoken],
+            }),
+            ...(patch.yearsExperience !== undefined && { yearsExperience: patch.yearsExperience }),
+            ...(patch.consultationFeeXaf !== undefined && {
+              consultationFeeXaf: patch.consultationFeeXaf,
+            }),
+            updatedAt,
+          })
           .where(eq(practitionerProfile.userId, userId))
           .pipe(
             Effect.flatMap(() =>

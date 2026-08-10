@@ -1,5 +1,5 @@
 {
-  "id": "9dca7ea8-cf4f-4cae-934e-c3a6976bc403",
+  "id": "80e38692-3ebc-4dce-9c7d-0ea794589b44",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -644,6 +644,36 @@
         "location": {
           "name": "location",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "specialty": {
+          "name": "specialty",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "languages_spoken": {
+          "name": "languages_spoken",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "years_experience": {
+          "name": "years_experience",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consultation_fee_xaf": {
+          "name": "consultation_fee_xaf",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
