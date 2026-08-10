@@ -19,6 +19,7 @@ const toResponse = (patient: Patient) => ({
   phone: patient.phone,
   dateOfBirth: patient.dateOfBirth,
   sex: patient.sex,
+  emergencyContact: patient.emergencyContact,
 });
 
 const completeProfile = createRoute({
@@ -63,6 +64,7 @@ export const registerPatientRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRunt
           dateOfBirth: body.dateOfBirth,
           sex: body.sex,
           consentVersion: body.consentVersion,
+          emergencyContact: body.emergencyContact,
         });
         return c.json(toResponse(saved), 200);
       }),

@@ -4,27 +4,43 @@ import { eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { patientProfile } from "@/db/schema/patient-profile";
 import { profile } from "@/db/schema/profile";
-import type { Patient } from "@/domain/patient/patient";
+import type { EmergencyContact, Patient } from "@/domain/patient/patient";
 
 type ProfileRow = typeof profile.$inferSelect;
+type PatientRow = typeof patientProfile.$inferSelect;
 
-const toDomain = (row: ProfileRow): Patient => ({
-  id: row.id,
-  userId: row.userId,
-  surname: row.surname,
-  givenNames: row.givenNames,
-  phone: row.phone,
-  dateOfBirth: row.dateOfBirth,
-  sex: row.sex,
-  consentAcceptedAt: row.consentAcceptedAt,
-  consentVersion: row.consentVersion,
+const toEmergencyContact = (row: PatientRow): EmergencyContact | null =>
+  row.emergencyContactName === null ||
+  row.emergencyContactPhone === null ||
+  row.emergencyContactRelationship === null
+    ? null
+    : {
+        name: row.emergencyContactName,
+        phone: row.emergencyContactPhone,
+        relationship: row.emergencyContactRelationship,
+      };
+
+const toDomain = (base: ProfileRow, patient: PatientRow): Patient => ({
+  id: base.id,
+  userId: base.userId,
+  surname: base.surname,
+  givenNames: base.givenNames,
+  phone: base.phone,
+  dateOfBirth: base.dateOfBirth,
+  sex: base.sex,
+  consentAcceptedAt: base.consentAcceptedAt,
+  consentVersion: base.consentVersion,
+  emergencyContact: toEmergencyContact(patient),
 });
 
 export interface PatientRepoService {
-  /** The base profile of a user who holds a patient marker; undefined otherwise. */
   readonly findByUserId: (userId: string) => Effect.Effect<Patient | undefined, SqlError.SqlError>;
-  /** Ensure the patient marker row exists (idempotent). */
-  readonly ensure: (userId: string) => Effect.Effect<void, SqlError.SqlError>;
+  /** Create-or-update the patient marker + emergency contact (idempotent). */
+  readonly upsert: (
+    userId: string,
+    emergencyContact: EmergencyContact | null,
+    updatedAt: Date,
+  ) => Effect.Effect<void, SqlError.SqlError>;
 }
 
 export class PatientRepo extends Context.Tag("PatientRepo")<PatientRepo, PatientRepoService>() {}
@@ -37,15 +53,34 @@ export const PatientRepoLive = Layer.effect(
     return {
       findByUserId: (userId) =>
         db
-          .select({ profile })
+          .select({ base: profile, patient: patientProfile })
           .from(patientProfile)
           .innerJoin(profile, eq(patientProfile.userId, profile.userId))
           .where(eq(patientProfile.userId, userId))
           .limit(1)
-          .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0].profile) : undefined))),
+          .pipe(
+            Effect.map((rows) => (rows[0] ? toDomain(rows[0].base, rows[0].patient) : undefined)),
+          ),
 
-      ensure: (userId) =>
-        db.insert(patientProfile).values({ userId }).onConflictDoNothing().pipe(Effect.asVoid),
+      upsert: (userId, emergencyContact, updatedAt) =>
+        db
+          .insert(patientProfile)
+          .values({
+            userId,
+            emergencyContactName: emergencyContact?.name ?? null,
+            emergencyContactPhone: emergencyContact?.phone ?? null,
+            emergencyContactRelationship: emergencyContact?.relationship ?? null,
+          })
+          .onConflictDoUpdate({
+            target: patientProfile.userId,
+            set: {
+              emergencyContactName: emergencyContact?.name ?? null,
+              emergencyContactPhone: emergencyContact?.phone ?? null,
+              emergencyContactRelationship: emergencyContact?.relationship ?? null,
+              updatedAt,
+            },
+          })
+          .pipe(Effect.asVoid),
     };
   }),
 );

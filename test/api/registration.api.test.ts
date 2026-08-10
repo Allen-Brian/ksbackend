@@ -37,11 +37,16 @@ describe("registration flows (real DB)", () => {
         sex: "male",
         consentVersion: "1.0",
         acceptTerms: true,
+        emergencyContact: { name: "Kin Folk", phone: "+237650000001", relationship: "sister" },
       },
       cookie,
     );
     expect(created.status).toBe(200);
-    expect((await json<{ surname: string }>(created)).surname).toBe("Ient");
+    const createdBody = await json<{ surname: string; emergencyContact: { name: string } | null }>(
+      created,
+    );
+    expect(createdBody.surname).toBe("Ient");
+    expect(createdBody.emergencyContact?.name).toBe("Kin Folk");
 
     expect(
       (await harness.app.request("/v1/patients/me/profile", { headers: { cookie } })).status,

@@ -34,10 +34,10 @@ export const PatientServiceLive = Layer.effect(
           const existing = yield* profiles.findByUserId(userId);
           const id = existing?.id ?? (yield* ids.next);
           const now = new Date(yield* Clock.currentTimeMillis);
-          // Base profile + patient marker are one atomic unit.
-          return yield* sql.withTransaction(
+          // Base profile + patient marker (with emergency contact) are one atomic unit.
+          yield* sql.withTransaction(
             Effect.gen(function* () {
-              const base = yield* profiles.upsert({
+              yield* profiles.upsert({
                 id,
                 userId,
                 surname: input.surname,
@@ -48,10 +48,11 @@ export const PatientServiceLive = Layer.effect(
                 consentAcceptedAt: now,
                 consentVersion: input.consentVersion,
               });
-              yield* repo.ensure(userId);
-              return base;
+              yield* repo.upsert(userId, input.emergencyContact ?? null, now);
             }),
           );
+          const saved = yield* repo.findByUserId(userId);
+          return saved ?? (yield* Effect.dieMessage("patient missing after upsert"));
         }),
     };
   }),
