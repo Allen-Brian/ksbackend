@@ -13,6 +13,7 @@ import { type Locale, negotiateLocale, translate } from "@/infra/i18n";
 import { RateLimiter } from "@/infra/rate-limiter";
 import { registerAdminRoutes } from "@/modules/admin/admin.routes";
 import { registerDependentRoutes } from "@/modules/dependent/dependent.routes";
+import { registerInvitationRoutes } from "@/modules/invitation/invitation.routes";
 import { registerPatientRoutes } from "@/modules/patient/patient.routes";
 import { registerPractitionerRoutes } from "@/modules/practitioner/practitioner.routes";
 import { registerNotificationRoutes } from "@/modules/notification/notification.routes";
@@ -159,6 +160,7 @@ export const createApp = (
   registerPractitionerRoutes(app, runtime);
   registerAdminRoutes(app, runtime);
   registerDependentRoutes(app, runtime);
+  registerInvitationRoutes(app, runtime);
 
   app.doc31("/openapi.json", {
     openapi: "3.1.0",

@@ -1,5 +1,6 @@
 CREATE TYPE "public"."admin_scope" AS ENUM('super_admin', 'verification_reviewer');--> statement-breakpoint
 CREATE TYPE "public"."caregiver_link_status" AS ENUM('pending', 'active', 'revoked', 'declined');--> statement-breakpoint
+CREATE TYPE "public"."consent_event" AS ENUM('invited', 'accepted', 'declined', 'revoked', 'upgraded');--> statement-breakpoint
 CREATE TYPE "public"."notification_category" AS ENUM('appointments', 'verification', 'security', 'account');--> statement-breakpoint
 CREATE TYPE "public"."relationship" AS ENUM('child', 'parent', 'spouse', 'sibling', 'other');--> statement-breakpoint
 CREATE TYPE "public"."sex" AS ENUM('male', 'female');--> statement-breakpoint
@@ -79,6 +80,15 @@ CREATE TABLE "caregiver_link" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "caregiver_link_invite_token_unique" UNIQUE("invite_token")
+);
+--> statement-breakpoint
+CREATE TABLE "consent_audit" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"link_id" uuid NOT NULL,
+	"actor_user_id" text,
+	"event" "consent_event" NOT NULL,
+	"meta" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "dependent" (
@@ -182,6 +192,8 @@ ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("
 ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_caregiver_user_id_user_id_fk" FOREIGN KEY ("caregiver_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_managed_dependent_id_dependent_id_fk" FOREIGN KEY ("managed_dependent_id") REFERENCES "public"."dependent"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_subject_user_id_user_id_fk" FOREIGN KEY ("subject_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "consent_audit" ADD CONSTRAINT "consent_audit_link_id_caregiver_link_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."caregiver_link"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "consent_audit" ADD CONSTRAINT "consent_audit_actor_user_id_user_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_preference" ADD CONSTRAINT "notification_preference_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "patient_profile" ADD CONSTRAINT "patient_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

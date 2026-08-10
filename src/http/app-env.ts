@@ -7,6 +7,7 @@ import type { Locale } from "@/infra/i18n";
 import type { RateLimiter } from "@/infra/rate-limiter";
 import type { AdminService } from "@/modules/admin/admin.service";
 import type { DependentService } from "@/modules/dependent/dependent.service";
+import type { InvitationService } from "@/modules/invitation/invitation.service";
 import type { NotificationService } from "@/modules/notification/notification.service";
 import type { PatientService } from "@/modules/patient/patient.service";
 import type { PractitionerService } from "@/modules/practitioner/practitioner.service";
@@ -32,7 +33,8 @@ export type AppServices =
   | PatientService
   | PractitionerService
   | AdminService
-  | DependentService;
+  | DependentService
+  | InvitationService;
 
 /**
  * The application runtime as seen by the HTTP layer. Any runtime that provides

@@ -1,5 +1,5 @@
 {
-  "id": "20dbe4ef-6373-40b2-90be-1a286a56e907",
+  "id": "a655642e-42aa-47e5-b56a-aff7aa3c6a2a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -548,6 +548,76 @@
           "columns": ["invite_token"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.consent_audit": {
+      "name": "consent_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event": {
+          "name": "event",
+          "type": "consent_event",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meta": {
+          "name": "meta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "consent_audit_link_id_caregiver_link_id_fk": {
+          "name": "consent_audit_link_id_caregiver_link_id_fk",
+          "tableFrom": "consent_audit",
+          "tableTo": "caregiver_link",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "consent_audit_actor_user_id_user_id_fk": {
+          "name": "consent_audit_actor_user_id_user_id_fk",
+          "tableFrom": "consent_audit",
+          "tableTo": "user",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1182,6 +1252,11 @@
       "name": "caregiver_link_status",
       "schema": "public",
       "values": ["pending", "active", "revoked", "declined"]
+    },
+    "public.consent_event": {
+      "name": "consent_event",
+      "schema": "public",
+      "values": ["invited", "accepted", "declined", "revoked", "upgraded"]
     },
     "public.notification_category": {
       "name": "notification_category",

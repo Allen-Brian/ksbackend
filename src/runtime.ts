@@ -12,6 +12,8 @@ import { AdminRepoLive } from "./modules/admin/admin.repo";
 import { AdminServiceLive } from "./modules/admin/admin.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
+import { InvitationRepoLive } from "./modules/invitation/invitation.repo";
+import { InvitationServiceLive } from "./modules/invitation/invitation.service";
 import { NotificationRepoLive } from "./modules/notification/notification.repo";
 import { NotificationServiceLive } from "./modules/notification/notification.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
@@ -53,6 +55,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
   const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
   const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
+  const invitationRepo = InvitationRepoLive.pipe(Layer.provide(database));
 
   const profile = ProfileServiceLive.pipe(
     Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
@@ -92,6 +95,9 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     ),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
+  const invitation = InvitationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(invitationRepo, idGen, infra.email, database)),
+  );
   const health = HealthLive.pipe(Layer.provide(database));
 
   return Layer.mergeAll(
@@ -101,6 +107,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     practitioner,
     admin,
     dependent,
+    invitation,
     health,
     RateLimiterInMemoryLive,
     LoggerLive,

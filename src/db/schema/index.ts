@@ -5,6 +5,7 @@
 export * from "./admin-profile";
 export * from "./auth";
 export * from "./caregiver-link";
+export * from "./consent-audit";
 export * from "./dependent";
 export * from "./enums";
 export * from "./notification-preference";

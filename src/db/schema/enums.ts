@@ -34,3 +34,11 @@ export const caregiverLinkStatusEnum = pgEnum("caregiver_link_status", [
   "revoked",
   "declined",
 ]);
+
+export const consentEventEnum = pgEnum("consent_event", [
+  "invited",
+  "accepted",
+  "declined",
+  "revoked",
+  "upgraded",
+]);

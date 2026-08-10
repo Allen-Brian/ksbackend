@@ -17,7 +17,8 @@ export type EmailScenario =
   | { readonly kind: "otp"; readonly otp: string }
   | { readonly kind: "reset-password"; readonly otp: string }
   | { readonly kind: "verification-approved" }
-  | { readonly kind: "verification-rejected"; readonly reason: string };
+  | { readonly kind: "verification-rejected"; readonly reason: string }
+  | { readonly kind: "caregiver-invitation"; readonly token: string };
 
 export type RenderedEmail = { readonly subject: string; readonly html: string };
 
@@ -55,6 +56,13 @@ export const renderEmail = (scenario: EmailScenario, locale: Locale): RenderedEm
         message: t("emails.verificationRejected.body", { reason: scenario.reason }),
       });
       return wrap(t("emails.verificationRejected.subject"), body);
+    }
+    case "caregiver-invitation": {
+      const body = noticeTemplate({
+        heading: t("emails.caregiverInvitation.heading"),
+        message: t("emails.caregiverInvitation.body", { token: scenario.token }),
+      });
+      return wrap(t("emails.caregiverInvitation.subject"), body);
     }
   }
 };
