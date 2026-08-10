@@ -14,8 +14,15 @@ export type CaregiverLinkView = {
   readonly direction: "sent" | "received";
 };
 
-/** Minimal, privacy-safe card returned by exact-match user search. */
-export type UserCard = {
-  readonly userId: string;
-  readonly displayName: string;
+/**
+ * A page of caregiver links (standard `{ data, meta }` list envelope).
+ */
+export type CaregiverLinkPage = {
+  readonly data: ReadonlyArray<CaregiverLinkView>;
+  readonly meta: {
+    readonly count: number;
+    readonly limit: number;
+    readonly nextCursor: string | null;
+    readonly hasNextPage: boolean;
+  };
 };

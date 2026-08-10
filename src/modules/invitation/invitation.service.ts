@@ -1,12 +1,15 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
 import type { Relationship } from "@/domain/dependent/dependent";
-import type { CaregiverLinkView, UserCard } from "@/domain/invitation/invitation";
+import type { CaregiverLinkPage, CaregiverLinkView } from "@/domain/invitation/invitation";
 import { Conflict, Forbidden, NotFound, ValidationFailed } from "@/domain/shared/errors";
 import { EmailSender } from "@/infra/email";
 import { renderEmail } from "@/infra/email-render";
 import { IdGenerator } from "@/infra/ids";
+import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { InvitationRepo, type LinkRow } from "./invitation.repo";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -44,8 +47,11 @@ export interface InvitationServiceService {
   readonly listMine: (
     userId: string,
     email: string,
-  ) => Effect.Effect<ReadonlyArray<CaregiverLinkView>, SqlError.SqlError>;
-  readonly searchUser: (email: string) => Effect.Effect<UserCard | null, SqlError.SqlError>;
+    limit: number,
+    cursor: string | undefined,
+  ) => Effect.Effect<CaregiverLinkPage, ValidationFailed | SqlError.SqlError>;
+  /** Exact-email existence check for the invite UI — returns no PII. */
+  readonly searchUser: (email: string) => Effect.Effect<boolean, SqlError.SqlError>;
 }
 
 export class InvitationService extends Context.Tag("InvitationService")<
@@ -187,13 +193,34 @@ export const InvitationServiceLive = Layer.effect(
           );
         }),
 
-      listMine: (userId, email) =>
-        repo
-          .listForUser(userId, email.toLowerCase())
-          .pipe(Effect.map((rows) => rows.map((r) => toView(r, userId)))),
+      listMine: (userId, email, limit, cursor) =>
+        Effect.gen(function* () {
+          let beforeId: string | undefined;
+          if (cursor !== undefined) {
+            const decoded = decodeCursor(cursor);
+            if (!UUID_RE.test(decoded)) {
+              return yield* Effect.fail(
+                new ValidationFailed({ issues: [{ path: "cursor", message: "Invalid cursor." }] }),
+              );
+            }
+            beforeId = decoded;
+          }
+          const rows = yield* repo.listForUser(userId, email.toLowerCase(), limit + 1, beforeId);
+          const hasNextPage = rows.length > limit;
+          const data = (hasNextPage ? rows.slice(0, limit) : rows).map((r) => toView(r, userId));
+          const last = data.at(-1);
+          return {
+            data,
+            meta: {
+              count: data.length,
+              limit,
+              nextCursor: hasNextPage && last ? encodeCursor(last.id) : null,
+              hasNextPage,
+            },
+          };
+        }),
 
-      searchUser: (email) =>
-        repo.searchByEmail(email.toLowerCase()).pipe(Effect.map((found) => found ?? null)),
+      searchUser: (email) => repo.emailExists(email.toLowerCase()),
     };
   }),
 );

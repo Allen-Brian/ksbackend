@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { paginated } from "@/http/schemas";
 
 const relationship = z.enum(["child", "parent", "spouse", "sibling", "other"]);
 
@@ -21,12 +22,12 @@ const linkView = z.object({
 
 export const LinkResponse = linkView.openapi("CaregiverLink");
 
-export const LinksResponse = z.object({ links: z.array(linkView) }).openapi("CaregiverLinks");
+export const LinksPage = paginated(linkView).openapi("CaregiverLinksPage");
 
 export const TokenParam = z.object({ token: z.string().min(1) });
 export const LinkIdParam = z.object({ id: z.uuid() });
 
 export const UserSearchQuery = z.object({ email: z.email() });
-export const UserSearchResponse = z
-  .object({ user: z.object({ userId: z.string(), displayName: z.string() }).nullable() })
-  .openapi("UserSearchResult");
+// Existence only — no name/userId — to avoid enumeration + PII disclosure.
+// Names become mutually visible after an invite is accepted.
+export const UserSearchResponse = z.object({ exists: z.boolean() }).openapi("UserSearchResult");

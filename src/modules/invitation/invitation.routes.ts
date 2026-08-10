@@ -3,13 +3,13 @@ import { Effect } from "effect";
 import type { CaregiverLinkView } from "@/domain/invitation/invitation";
 import type { AppEnv, AppRuntime } from "@/http/app-env";
 import { makeRun } from "@/http/run";
-import { ErrorResponse } from "@/http/schemas";
+import { CursorQuery, ErrorResponse } from "@/http/schemas";
 import { CurrentUser } from "@/infra/auth";
 import {
   InviteBody,
   LinkIdParam,
   LinkResponse,
-  LinksResponse,
+  LinksPage,
   TokenParam,
   UserSearchQuery,
   UserSearchResponse,
@@ -47,9 +47,11 @@ const listMine = createRoute({
   path: "/v1/me/invitations",
   tags: ["Dependents"],
   summary: "Caregiver links sent by / addressed to the current user",
+  request: { query: CursorQuery },
   responses: {
-    200: { ...jsonBody(LinksResponse), description: "Links" },
+    200: { ...jsonBody(LinksPage), description: "A page of caregiver links" },
     401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
+    422: { ...jsonBody(ErrorResponse), description: "Invalid cursor" },
   },
 });
 
@@ -100,10 +102,10 @@ const search = createRoute({
   method: "get",
   path: "/v1/users/search",
   tags: ["Dependents"],
-  summary: "Exact-match lookup of a user by email (for linking)",
+  summary: "Whether an account exists for an exact email (for linking)",
   request: { query: UserSearchQuery },
   responses: {
-    200: { ...jsonBody(UserSearchResponse), description: "The matching user, or null" },
+    200: { ...jsonBody(UserSearchResponse), description: "Whether the account exists" },
     401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
     422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
   },
@@ -130,17 +132,18 @@ export const registerInvitationRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppR
     ),
   );
 
-  app.openapi(listMine, (c) =>
-    runAuth(
+  app.openapi(listMine, (c) => {
+    const { limit, cursor } = c.req.valid("query");
+    return runAuth(
       c,
       Effect.gen(function* () {
         const user = yield* CurrentUser;
         const service = yield* InvitationService;
-        const links = yield* service.listMine(user.id, user.email);
-        return c.json({ links: links.map(toView) }, 200);
+        const page = yield* service.listMine(user.id, user.email, limit, cursor);
+        return c.json({ data: page.data.map(toView), meta: page.meta }, 200);
       }),
-    ),
-  );
+    );
+  });
 
   app.openapi(accept, (c) =>
     runAuth(
@@ -183,8 +186,8 @@ export const registerInvitationRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppR
       c,
       Effect.gen(function* () {
         const service = yield* InvitationService;
-        const found = yield* service.searchUser(c.req.valid("query").email);
-        return c.json({ user: found }, 200);
+        const exists = yield* service.searchUser(c.req.valid("query").email);
+        return c.json({ exists }, 200);
       }),
     ),
   );

@@ -1,13 +1,12 @@
 import { SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { user } from "@/db/schema/auth";
 import { caregiverLink } from "@/db/schema/caregiver-link";
 import { consentAudit } from "@/db/schema/consent-audit";
-import { profile } from "@/db/schema/profile";
 import type { Relationship } from "@/domain/dependent/dependent";
-import type { LinkStatus, UserCard } from "@/domain/invitation/invitation";
+import type { LinkStatus } from "@/domain/invitation/invitation";
 
 export type LinkRow = typeof caregiverLink.$inferSelect;
 
@@ -45,8 +44,11 @@ export interface InvitationRepoService {
   readonly listForUser: (
     userId: string,
     email: string,
+    limit: number,
+    beforeId: string | undefined,
   ) => Effect.Effect<ReadonlyArray<LinkRow>, SqlError.SqlError>;
-  readonly searchByEmail: (email: string) => Effect.Effect<UserCard | undefined, SqlError.SqlError>;
+  /** Whether an account exists for this exact email (no PII returned). */
+  readonly emailExists: (email: string) => Effect.Effect<boolean, SqlError.SqlError>;
   readonly audit: (input: {
     readonly id: string;
     readonly linkId: string;
@@ -144,45 +146,35 @@ export const InvitationRepoLive = Layer.effect(
           .limit(1)
           .pipe(Effect.map((rows) => rows[0])),
 
-      listForUser: (userId, email) =>
-        db
+      // Keyset pagination on id (desc) — an opaque cursor, matching the other
+      // list endpoints. `belongsToUser` is the union of links this user is a
+      // party to plus pending invites addressed to their email.
+      listForUser: (userId, email, limit, beforeId) => {
+        const belongsToUser = or(
+          eq(caregiverLink.caregiverUserId, userId),
+          eq(caregiverLink.subjectUserId, userId),
+          and(eq(caregiverLink.inviteIdentifier, email), eq(caregiverLink.status, "pending")),
+        );
+        return db
           .select()
           .from(caregiverLink)
           .where(
-            or(
-              eq(caregiverLink.caregiverUserId, userId),
-              eq(caregiverLink.subjectUserId, userId),
-              and(eq(caregiverLink.inviteIdentifier, email), eq(caregiverLink.status, "pending")),
-            ),
+            beforeId === undefined
+              ? belongsToUser
+              : and(belongsToUser, lt(caregiverLink.id, beforeId)),
           )
-          .orderBy(desc(caregiverLink.createdAt))
-          .pipe(Effect.map((rows) => rows)),
+          .orderBy(desc(caregiverLink.id))
+          .limit(limit)
+          .pipe(Effect.map((rows) => rows));
+      },
 
-      searchByEmail: (email) =>
+      emailExists: (email) =>
         db
-          .select({
-            userId: user.id,
-            name: user.name,
-            surname: profile.surname,
-            givenNames: profile.givenNames,
-          })
+          .select({ id: user.id })
           .from(user)
-          .leftJoin(profile, eq(profile.userId, user.id))
-          // A freshly signed-up invitee may not have completed a profile yet, so
-          // fall back to the account name until they do.
           .where(eq(user.email, email))
           .limit(1)
-          .pipe(
-            Effect.map((rows) => {
-              const row = rows[0];
-              if (row === undefined) return undefined;
-              const displayName =
-                row.givenNames !== null && row.surname !== null
-                  ? `${row.givenNames} ${row.surname}`
-                  : row.name;
-              return { userId: row.userId, displayName };
-            }),
-          ),
+          .pipe(Effect.map((rows) => rows.length > 0)),
 
       audit: (input) =>
         db

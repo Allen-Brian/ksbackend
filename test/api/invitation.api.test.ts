@@ -55,15 +55,15 @@ describe("caregiver invitations API (real DB)", () => {
 
     // Caregiver sees it as sent+active; invitee sees it as received.
     const mine = await json<{
-      links: ReadonlyArray<{ id: string; direction: string; status: string }>;
+      data: ReadonlyArray<{ id: string; direction: string; status: string }>;
     }>(await harness.app.request("/v1/me/invitations", { headers: { cookie: caregiver } }));
     expect(
-      mine.links.some((l) => l.id === link.id && l.direction === "sent" && l.status === "active"),
+      mine.data.some((l) => l.id === link.id && l.direction === "sent" && l.status === "active"),
     ).toBe(true);
-    const theirs = await json<{ links: ReadonlyArray<{ id: string; direction: string }> }>(
+    const theirs = await json<{ data: ReadonlyArray<{ id: string; direction: string }> }>(
       await harness.app.request("/v1/me/invitations", { headers: { cookie: inviteeCookie } }),
     );
-    expect(theirs.links.some((l) => l.id === link.id && l.direction === "received")).toBe(true);
+    expect(theirs.data.some((l) => l.id === link.id && l.direction === "received")).toBe(true);
 
     // Either party can revoke.
     expect(
@@ -108,19 +108,19 @@ describe("caregiver invitations API (real DB)", () => {
     expect((await harness.post(`/v1/invitations/${token}/accept`, {}, caregiver)).status).toBe(403);
   });
 
-  it("user search: exact match returns a card, miss returns null", async () => {
-    const found = await json<{ user: { displayName: string } | null }>(
+  it("user search: reports existence only (no PII)", async () => {
+    const found = await json<{ exists: boolean }>(
       await harness.app.request("/v1/users/search?email=linked-dep@example.com", {
         headers: { cookie: caregiver },
       }),
     );
-    expect(found.user?.displayName).toContain("Linked");
+    expect(found.exists).toBe(true);
 
-    const miss = await json<{ user: unknown }>(
+    const miss = await json<{ exists: boolean }>(
       await harness.app.request("/v1/users/search?email=nobody@example.com", {
         headers: { cookie: caregiver },
       }),
     );
-    expect(miss.user).toBeNull();
+    expect(miss.exists).toBe(false);
   });
 });
