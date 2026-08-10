@@ -4,8 +4,9 @@ import { caregiverLink } from "./caregiver-link";
 import { consentEventEnum } from "./enums";
 
 // Append-only log of consent events on a caregiver_link (invited/accepted/
-// declined/revoked/upgraded) — who did what, when. Health-data access is
-// consent-gated and must be reconstructable after the fact.
+// declined/revoked/upgraded) — who did what, when. Scoped to the link's
+// lifecycle: the trail cascades away when the link (or either party's account)
+// is deleted, so deleting an account also erases its consent history.
 export const consentAudit = pgTable("consent_audit", {
   id: uuid("id").primaryKey(),
   linkId: uuid("link_id")

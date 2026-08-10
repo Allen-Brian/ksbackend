@@ -74,6 +74,7 @@ const approve = createRoute({
     401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
     403: { ...jsonBody(ErrorResponse), description: "Not an admin" },
     404: { ...jsonBody(ErrorResponse), description: "Not found" },
+    409: { ...jsonBody(ErrorResponse), description: "Not in a reviewable state" },
   },
 });
 
@@ -88,6 +89,7 @@ const reject = createRoute({
     401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
     403: { ...jsonBody(ErrorResponse), description: "Not an admin" },
     404: { ...jsonBody(ErrorResponse), description: "Not found" },
+    409: { ...jsonBody(ErrorResponse), description: "Not in a reviewable state" },
     422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
   },
 });

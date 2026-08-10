@@ -65,6 +65,13 @@ export const InvitationServiceLive = Layer.effect(
     const pendingForInvitee = (row: LinkRow | undefined, userEmail: string, now: Date) =>
       Effect.gen(function* () {
         if (row === undefined) return yield* Effect.fail(new NotFound({ resource: "Invitation" }));
+        // Check ownership BEFORE status/expiry so we never disclose a token's
+        // state to someone it wasn't addressed to.
+        if (row.inviteIdentifier !== userEmail.toLowerCase()) {
+          return yield* Effect.fail(
+            new Forbidden({ reason: "invitation addressed to another user" }),
+          );
+        }
         if (row.status !== "pending") {
           return yield* Effect.fail(
             new Conflict({ resource: "Invitation", reason: "already responded" }),
@@ -72,11 +79,6 @@ export const InvitationServiceLive = Layer.effect(
         }
         if (row.expiresAt !== null && row.expiresAt.getTime() < now.getTime()) {
           return yield* Effect.fail(new Conflict({ resource: "Invitation", reason: "expired" }));
-        }
-        if (row.inviteIdentifier !== userEmail.toLowerCase()) {
-          return yield* Effect.fail(
-            new Forbidden({ reason: "invitation addressed to another user" }),
-          );
         }
         return row;
       });

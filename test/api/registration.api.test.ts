@@ -50,6 +50,16 @@ describe("registration flows (real DB)", () => {
       (await harness.app.request("/v1/patients/me/profile", { headers: { cookie } })).status,
     ).toBe(200);
     expect((await harness.app.request("/v1/patients/me/profile")).status).toBe(401);
+
+    // Self-granting the patient role again must NOT wipe the emergency contact.
+    expect(
+      (await harness.app.request("/v1/me/roles/patient", { method: "POST", headers: { cookie } }))
+        .status,
+    ).toBe(204);
+    const afterClaim = await json<{ emergencyContact: { name: string } | null }>(
+      await harness.app.request("/v1/patients/me/profile", { headers: { cookie } }),
+    );
+    expect(afterClaim.emergencyContact?.name).toBe("Kin Folk");
   });
 
   it("multi-role: registering as practitioner preserves base fields set as a patient", async () => {

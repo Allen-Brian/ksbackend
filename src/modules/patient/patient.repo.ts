@@ -45,6 +45,11 @@ export interface PatientRepoService {
     emergencyContact: EmergencyContact | null,
     updatedAt: Date,
   ) => Effect.Effect<void, SqlError.SqlError>;
+  /**
+   * Ensure a patient marker row exists WITHOUT touching emergency-contact data.
+   * Used by role self-grant, which must never clobber a completed profile.
+   */
+  readonly ensureMarker: (id: string, userId: string) => Effect.Effect<void, SqlError.SqlError>;
   /** Add the `patient` role to the user (idempotent via role-set dedup). */
   readonly grantPatientRole: (userId: string) => Effect.Effect<void, SqlError.SqlError>;
 }
@@ -101,6 +106,13 @@ export const PatientRepoLive = Layer.effect(
               updatedAt,
             },
           })
+          .pipe(Effect.asVoid),
+
+      ensureMarker: (id, userId) =>
+        db
+          .insert(patientProfile)
+          .values({ id, userId })
+          .onConflictDoNothing({ target: patientProfile.userId })
           .pipe(Effect.asVoid),
     };
   }),

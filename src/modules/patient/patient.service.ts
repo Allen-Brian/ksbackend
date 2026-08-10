@@ -61,12 +61,13 @@ export const PatientServiceLive = Layer.effect(
       claimRole: (userId) =>
         Effect.gen(function* () {
           const patientId = yield* ids.next;
-          const now = new Date(yield* Clock.currentTimeMillis);
-          // Role + marker are one atomic unit.
+          // Role + marker are one atomic unit. `ensureMarker` never overwrites an
+          // existing profile's emergency contact — self-granting the role is a
+          // no-op for anyone who already completed their patient profile.
           yield* sql.withTransaction(
             Effect.gen(function* () {
               yield* repo.grantPatientRole(userId);
-              yield* repo.upsert(patientId, userId, null, now);
+              yield* repo.ensureMarker(patientId, userId);
             }),
           );
         }),
