@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { user } from "@/db/schema/auth";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
@@ -142,7 +140,7 @@ describe("registration flows (real DB)", () => {
       "password12345",
       "Ad Min",
     );
-    await harness.db.update(user).set({ role: "admin" }).where(eq(user.email, "admin@example.com"));
+    await harness.promoteToAdmin("admin@example.com");
 
     const pending = await harness.app.request("/v1/admin/verifications?limit=10", {
       headers: { cookie: adminCookie },

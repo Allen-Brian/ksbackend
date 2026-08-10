@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { user } from "@/db/schema/auth";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
@@ -84,10 +82,7 @@ describe("practitioner public profile API (real DB)", () => {
       "password12345",
       "Ad",
     );
-    await harness.db
-      .update(user)
-      .set({ role: "admin" })
-      .where(eq(user.email, "pub-admin@example.com"));
+    await harness.promoteToAdmin("pub-admin@example.com");
     await harness.post(`/v1/admin/verifications/${practitionerId}/approve`, {}, adminCookie);
   });
 

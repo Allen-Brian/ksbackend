@@ -25,3 +25,5 @@ export const notificationCategoryEnum = pgEnum("notification_category", [
   "security",
   "account",
 ]);
+
+export const adminScopeEnum = pgEnum("admin_scope", ["super_admin", "verification_reviewer"]);

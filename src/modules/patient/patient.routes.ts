@@ -47,6 +47,17 @@ const getProfile = createRoute({
   },
 });
 
+const claimRole = createRoute({
+  method: "post",
+  path: "/v1/me/roles/patient",
+  tags: ["Patients"],
+  summary: "Self-grant the patient role (become a care recipient)",
+  responses: {
+    204: { description: "Patient role granted" },
+    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
+  },
+});
+
 export const registerPatientRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRuntime): void => {
   const { runAuth } = makeRun(runtime);
 
@@ -82,6 +93,18 @@ export const registerPatientRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRunt
           return yield* Effect.fail(new NotFound({ resource: "Patient profile" }));
         }
         return c.json(toResponse(found), 200);
+      }),
+    ),
+  );
+
+  app.openapi(claimRole, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* PatientService;
+        yield* service.claimRole(user.id);
+        return c.body(null, 204);
       }),
     ),
   );

@@ -1,8 +1,18 @@
+CREATE TYPE "public"."admin_scope" AS ENUM('super_admin', 'verification_reviewer');--> statement-breakpoint
 CREATE TYPE "public"."notification_category" AS ENUM('appointments', 'verification', 'security', 'account');--> statement-breakpoint
 CREATE TYPE "public"."relationship" AS ENUM('child', 'parent', 'spouse', 'sibling', 'other');--> statement-breakpoint
 CREATE TYPE "public"."sex" AS ENUM('male', 'female');--> statement-breakpoint
 CREATE TYPE "public"."verification_decision" AS ENUM('approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."verification_status" AS ENUM('incomplete', 'pending_verification', 'verified', 'rejected');--> statement-breakpoint
+CREATE TABLE "admin_profile" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"scope" "admin_scope" NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "admin_profile_user_id_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "account" (
 	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
@@ -150,6 +160,7 @@ CREATE TABLE "verification_review" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "admin_profile" ADD CONSTRAINT "admin_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dependent" ADD CONSTRAINT "dependent_account_holder_user_id_user_id_fk" FOREIGN KEY ("account_holder_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

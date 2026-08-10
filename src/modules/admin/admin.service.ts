@@ -1,5 +1,6 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
+import type { AdminScope } from "@/domain/admin/admin";
 import type { Practitioner } from "@/domain/practitioner/practitioner";
 import {
   Forbidden,
@@ -16,6 +17,10 @@ import { IdGenerator } from "@/infra/ids";
 import { FileStorage, type StorageError } from "@/infra/storage";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { PractitionerRepo } from "@/modules/practitioner/practitioner.repo";
+import { AdminRepo } from "./admin.repo";
+
+// Verification actions require an admin with at least reviewer scope.
+const REVIEWER_SCOPES: ReadonlyArray<AdminScope> = ["super_admin", "verification_reviewer"];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -82,11 +87,23 @@ export const AdminServiceLive = Layer.effect(
   AdminService,
   Effect.gen(function* () {
     const repo = yield* PractitionerRepo;
+    const adminRepo = yield* AdminRepo;
     const crypto = yield* Crypto;
     const storage = yield* FileStorage;
     const email = yield* EmailSender;
     const ids = yield* IdGenerator;
     const sql = yield* SqlClient.SqlClient;
+
+    // Gate an action on the caller's admin scope (implies the admin role).
+    const requireScope = (allowed: ReadonlyArray<AdminScope>) =>
+      Effect.gen(function* () {
+        yield* requireRole("admin");
+        const current = yield* CurrentUser;
+        const scope = yield* adminRepo.findScope(current.id);
+        if (scope === undefined || !allowed.includes(scope)) {
+          return yield* Effect.fail(new Forbidden({ reason: "insufficient admin scope" }));
+        }
+      });
 
     const presignMaybe = (key: string | null) =>
       key === null ? Effect.succeed(null) : storage.presignDownload(key);
@@ -111,7 +128,7 @@ export const AdminServiceLive = Layer.effect(
       reason: string | null,
     ) =>
       Effect.gen(function* () {
-        yield* requireRole("admin");
+        yield* requireScope(REVIEWER_SCOPES);
         const reviewer = yield* CurrentUser;
         const found = yield* repo.findById(id);
         if (found === undefined) {
@@ -160,7 +177,7 @@ export const AdminServiceLive = Layer.effect(
     return {
       listPending: (limit, cursor) =>
         Effect.gen(function* () {
-          yield* requireRole("admin");
+          yield* requireScope(REVIEWER_SCOPES);
           let beforeId: string | undefined;
           if (cursor !== undefined) {
             const decoded = decodeCursor(cursor);
@@ -188,7 +205,7 @@ export const AdminServiceLive = Layer.effect(
 
       getDetail: (id) =>
         Effect.gen(function* () {
-          yield* requireRole("admin");
+          yield* requireScope(REVIEWER_SCOPES);
           const found = yield* repo.findByIdWithSecrets(id);
           if (found === undefined) {
             return yield* Effect.fail(new NotFound({ resource: "Practitioner", id }));

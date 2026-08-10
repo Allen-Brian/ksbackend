@@ -8,6 +8,7 @@ import { LoggerLive } from "./infra/logger";
 import { RateLimiterInMemoryLive } from "./infra/rate-limiter";
 import { FileScanner, FileScannerCleanLive, FileScannerS3Live } from "./infra/scanner";
 import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/storage";
+import { AdminRepoLive } from "./modules/admin/admin.repo";
 import { AdminServiceLive } from "./modules/admin/admin.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
@@ -51,6 +52,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const practitionerRepo = PractitionerRepoLive.pipe(Layer.provide(database));
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
   const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
+  const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
 
   const profile = ProfileServiceLive.pipe(
     Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
@@ -78,7 +80,15 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   );
   const admin = AdminServiceLive.pipe(
     Layer.provide(
-      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.storage, infra.email, database),
+      Layer.mergeAll(
+        practitionerRepo,
+        adminRepo,
+        idGen,
+        crypto,
+        infra.storage,
+        infra.email,
+        database,
+      ),
     ),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));

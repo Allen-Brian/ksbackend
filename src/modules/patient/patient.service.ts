@@ -11,6 +11,8 @@ export interface PatientServiceService {
     userId: string,
     input: PatientProfileInput,
   ) => Effect.Effect<Patient, SqlError.SqlError>;
+  /** Self-grant the patient role (any user can become a care recipient). */
+  readonly claimRole: (userId: string) => Effect.Effect<void, SqlError.SqlError>;
 }
 
 export class PatientService extends Context.Tag("PatientService")<
@@ -54,6 +56,19 @@ export const PatientServiceLive = Layer.effect(
           );
           const saved = yield* repo.findByUserId(userId);
           return saved ?? (yield* Effect.dieMessage("patient missing after upsert"));
+        }),
+
+      claimRole: (userId) =>
+        Effect.gen(function* () {
+          const patientId = yield* ids.next;
+          const now = new Date(yield* Clock.currentTimeMillis);
+          // Role + marker are one atomic unit.
+          yield* sql.withTransaction(
+            Effect.gen(function* () {
+              yield* repo.grantPatientRole(userId);
+              yield* repo.upsert(patientId, userId, null, now);
+            }),
+          );
         }),
     };
   }),

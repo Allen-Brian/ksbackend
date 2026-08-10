@@ -1,6 +1,10 @@
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { ConfigProvider, Effect, Layer, ManagedRuntime } from "effect";
 import { expect } from "vitest";
+import { adminProfile } from "@/db/schema/admin-profile";
+import { user } from "@/db/schema/auth";
+import type { AdminScope } from "@/domain/admin/admin";
 import { createApp } from "@/http/app";
 import { makeAuth } from "@/infra/auth";
 import { type EmailClient, EmailSender, type EmailMessage } from "@/infra/email";
@@ -15,6 +19,8 @@ export type TestHarness = {
   readonly sent: ReadonlyArray<EmailMessage>;
   readonly post: (path: string, body: unknown, cookie?: string) => Promise<Response>;
   readonly signUpAndVerify: (email: string, password: string, name: string) => Promise<string>;
+  /** Promote an existing user to admin with the given scope (role + admin_profile). */
+  readonly promoteToAdmin: (email: string, scope?: AdminScope) => Promise<void>;
   readonly otpFor: (email: string) => string;
   readonly dispose: () => Promise<void>;
 };
@@ -106,6 +112,17 @@ export const createTestHarness = async (
     return cookie;
   };
 
+  const promoteToAdmin = async (
+    email: string,
+    scope: AdminScope = "super_admin",
+  ): Promise<void> => {
+    const rows = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
+    const userId = rows[0]?.id;
+    if (userId === undefined) throw new Error(`no user for ${email}`);
+    await db.update(user).set({ role: "admin" }).where(eq(user.id, userId));
+    await db.insert(adminProfile).values({ id: crypto.randomUUID(), userId, scope });
+  };
+
   const dispose = async (): Promise<void> => {
     await runtime.dispose();
     await auth.close();
@@ -113,5 +130,5 @@ export const createTestHarness = async (
     await pg.stop();
   };
 
-  return { app, db, sent, post, signUpAndVerify, otpFor, dispose };
+  return { app, db, sent, post, signUpAndVerify, promoteToAdmin, otpFor, dispose };
 };

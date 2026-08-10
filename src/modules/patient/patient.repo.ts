@@ -2,9 +2,11 @@ import { SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
 import { eq } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
+import { user } from "@/db/schema/auth";
 import { patientProfile } from "@/db/schema/patient-profile";
 import { profile } from "@/db/schema/profile";
 import type { EmergencyContact, Patient } from "@/domain/patient/patient";
+import { parseRoles, serializeRoles } from "@/infra/auth";
 
 type ProfileRow = typeof profile.$inferSelect;
 type PatientRow = typeof patientProfile.$inferSelect;
@@ -43,6 +45,8 @@ export interface PatientRepoService {
     emergencyContact: EmergencyContact | null,
     updatedAt: Date,
   ) => Effect.Effect<void, SqlError.SqlError>;
+  /** Add the `patient` role to the user (idempotent via role-set dedup). */
+  readonly grantPatientRole: (userId: string) => Effect.Effect<void, SqlError.SqlError>;
 }
 
 export class PatientRepo extends Context.Tag("PatientRepo")<PatientRepo, PatientRepoService>() {}
@@ -62,6 +66,20 @@ export const PatientRepoLive = Layer.effect(
           .limit(1)
           .pipe(
             Effect.map((rows) => (rows[0] ? toDomain(rows[0].base, rows[0].patient) : undefined)),
+          ),
+
+      grantPatientRole: (userId) =>
+        db
+          .select({ role: user.role })
+          .from(user)
+          .where(eq(user.id, userId))
+          .limit(1)
+          .pipe(
+            Effect.flatMap((rows) => {
+              const next = serializeRoles([...parseRoles(rows[0]?.role), "patient"]);
+              return db.update(user).set({ role: next }).where(eq(user.id, userId));
+            }),
+            Effect.asVoid,
           ),
 
       upsert: (id, userId, emergencyContact, updatedAt) =>
