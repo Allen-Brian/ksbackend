@@ -28,13 +28,19 @@ win.
   Downstream code only _declares_ requirements in its `R` channel.
 - **Typed error channel** — wrap every external promise/SDK/throwing call in
   `Effect.tryPromise({ try, catch })` mapping to a **tagged error**. No `unknown` errors escape.
-- **Name service methods** with `Effect.fn("Domain.operation")` for legible traces.
 - **Config via `Config`** — never read `process.env` in application logic.
-- **Determinism** — never `Date.now()` / `new Date()` / `Math.random()`; use Effect `Clock` /
-  `DateTime` / `Random` (this keeps time/id logic testable via `TestClock`).
-- **Concurrency** via `Effect.forEach(xs, f, { concurrency })` / `Effect.all` — not `Promise.all`.
-- **Transactions** via `SqlClient.withTransaction` — never Drizzle's `db.transaction()`.
-- Use `Option<A>` for optional domain values; convert to `null`/omitted at the HTTP boundary.
+- **Determinism** — never argless `new Date()` / `Date.now()` / `Math.random()`; read the wall
+  clock via Effect `Clock` (`new Date(yield* Clock.currentTimeMillis)` is fine — the value is
+  injected and `TestClock`-controllable). Non-determinism (e.g. UUIDs) hides behind a seam
+  (`IdGenerator`). Enforced by `check:structure`.
+- **Concurrency** via `Effect.forEach(xs, f, { concurrency })` / `Effect.all(_, { concurrency })` —
+  not `Promise.all`, and not the default sequential mode when the effects are independent.
+- **Transactions** via `SqlClient.withTransaction` — never Drizzle's `db.transaction()`. Any
+  operation with more than one dependent write (row + audit row, profile + role) must be wrapped.
+- Optional reads return `A | undefined` from repos/services; convert to `null`/omitted at the HTTP
+  boundary. (`Option<A>` is available but not required — stay consistent with the surrounding code.)
+- **Tracing (optional):** wrapping a service method in `Effect.fn("Domain.operation")` gives a
+  named span; adopt it where richer traces help. Not currently required or uniformly applied.
 
 ## HTTP contracts
 
@@ -44,8 +50,10 @@ win.
 - **Success:** single resource → the object **directly** (no `data` wrapper). Mutation w/o body → `204`.
 - **Lists → `{ data, meta }`**, cursor/keyset by default:
   `meta: { count, limit, nextCursor, hasNextPage }`. Request `?limit&cursor`, `limit` ≤ 100,
-  stable order `createdAt DESC, id DESC`. Offset/page (`page, pageSize, total, pageCount, …`)
-  is an opt-in per-endpoint exception. Never return a bare array.
+  a stable descending order. Ids are UUIDv7 (time-sortable + unique), so `ORDER BY id DESC` with
+  an `id < cursor` keyset is a valid stable order on its own; add a `createdAt` tiebreaker only for
+  non-UUIDv7 keys. Offset/page (`page, pageSize, total, pageCount, …`) is an opt-in per-endpoint
+  exception. Never return a bare array.
 - **Validation both ways** via `@hono/zod-openapi` `createRoute` — request schemas validate input
   _and_ feed OpenAPI; the response schema is declared and enforced at compile time.
 - Methods/status: plural kebab nouns under `/v1`; `PATCH` for partial update; `409` on duplicate
@@ -85,7 +93,7 @@ win.
 - **Functions, variables, service methods:** `camelCase` (`findById`, `createWidget`).
 - **Constants / enum-like literal unions:** values are `SCREAMING_SNAKE` when they're wire/error
   codes; otherwise lowercase literals.
-- **Effect service methods** are wrapped with `Effect.fn("Feature.operation")` — the span name uses
+- **Span names** (when `Effect.fn` is used — see the optional tracing note above) follow
   `PascalCaseFeature.camelCaseOperation` (e.g. `Effect.fn("User.create")`).
 
 > Note: oxlint does not yet implement `naming-convention`/`camelcase`, so identifier casing is a

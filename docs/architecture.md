@@ -55,8 +55,8 @@ src/
   modules/<feature>/
     <feature>.routes.ts     # createRoute defs + THIN handlers
     <feature>.contract.ts   # Zod request/response schemas (feed OpenAPI)
-    <feature>.service.ts    # Effect.Service — business logic
-    <feature>.repo.ts       # Effect.Service — ONLY place Drizzle lives
+    <feature>.service.ts    # Context.Tag + Layer.effect — business logic
+    <feature>.repo.ts       # Context.Tag + Layer.effect — ONLY place Drizzle lives
     <feature>.policy.ts     # authorization decisions
     <feature>.test.ts
   infra/{config,db,logger,tracing,auth,ids,cache,rate-limiter}.ts
@@ -82,9 +82,9 @@ Rule of thumb: **if you'd ever fake/swap it in a test, it's a Service** (behind 
 
 ### Class vs plain function
 
-Classes appear **only** as: `Effect.Service` / `Context.Tag`, tagged errors
-(`Data.TaggedError` / `Schema.TaggedError`), and `Schema.Class` entities. No OOP service
-classes, no `new` for business logic.
+Classes appear **only** as: `Context.Tag` service tags (paired with a `Layer.effect`/`Layer.succeed`
+`*Live`), tagged errors (`Data.TaggedError` / `Schema.TaggedError`), and `Schema.Class` entities.
+No OOP service classes, no `new` for business logic.
 
 ### `type` vs `interface`
 

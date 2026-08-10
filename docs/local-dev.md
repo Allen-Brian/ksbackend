@@ -39,7 +39,7 @@ taken, just set `DATABASE_URL=…@localhost:5433/…` and it follows. (An explic
 
 ### Browsing S3
 
-LocalStack Community has **no built-in web UI** — `http://localhost:4566` is the S3 *API*, not a
+LocalStack Community has **no built-in web UI** — `http://localhost:4566` is the S3 _API_, not a
 dashboard. `infra:up` therefore also starts a small S3 browser (`s3manager`):
 
 👉 **http://localhost:8083** — view/upload/download objects in `kanasante-dev`.
