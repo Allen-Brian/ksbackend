@@ -24,7 +24,7 @@ export const PatientProfileResponse = z
     surname: z.string(),
     givenNames: z.string(),
     phone: z.string().nullable(),
-    dateOfBirth: z.string(),
-    sex: z.enum(["male", "female"]),
+    dateOfBirth: z.string().nullable(),
+    sex: z.enum(["male", "female"]).nullable(),
   })
   .openapi("PatientProfile");

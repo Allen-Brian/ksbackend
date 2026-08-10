@@ -18,3 +18,4 @@ env.d.ts
 # Local planning docs — not committed for now (graduate into docs/ as they land)
 docs/SCAFFOLDING_PLAN.md
 docs/AUTH_PLAN.md
+docs/PROFILE_PLAN.md

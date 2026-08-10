@@ -17,6 +17,7 @@ import { Crypto } from "@/infra/crypto";
 import { IdGenerator } from "@/infra/ids";
 import { FileScanner } from "@/infra/scanner";
 import { FileStorage, type PresignedUpload, type StorageError } from "@/infra/storage";
+import { ProfileRepo } from "@/modules/profile/profile.repo";
 import { PractitionerRepo } from "./practitioner.repo";
 
 type DocumentKind = "cmc-certificate" | "nic" | "profile-photo";
@@ -72,6 +73,7 @@ export const PractitionerServiceLive = Layer.effect(
   PractitionerService,
   Effect.gen(function* () {
     const repo = yield* PractitionerRepo;
+    const profiles = yield* ProfileRepo;
     const ids = yield* IdGenerator;
     const crypto = yield* Crypto;
     const scanner = yield* FileScanner;
@@ -81,31 +83,37 @@ export const PractitionerServiceLive = Layer.effect(
     return {
       register: (userId, role, input) =>
         Effect.gen(function* () {
-          const id = yield* ids.next;
+          const existingProfile = yield* profiles.findByUserId(userId);
+          const profileId = existingProfile?.id ?? (yield* ids.next);
+          const practitionerId = yield* ids.next;
           const now = new Date(yield* Clock.currentTimeMillis);
-          // Profile row + role grant are one atomic unit: never leave a
-          // practitioner_profile without the doctor/nurse role (or vice versa).
-          return yield* sql.withTransaction(
+          // Base profile + professional row + role grant are one atomic unit.
+          yield* sql.withTransaction(
             Effect.gen(function* () {
-              const created = yield* repo.create({
-                id,
+              yield* profiles.upsert({
+                id: profileId,
                 userId,
-                professionId: input.professionId,
-                prefix: input.prefix ?? null,
                 surname: input.surname,
                 givenNames: input.givenNames,
                 phone: input.phone ?? null,
                 dateOfBirth: input.dateOfBirth ?? null,
                 sex: input.sex ?? null,
-                location: input.location ?? null,
-                verificationStatus: "incomplete",
                 consentAcceptedAt: now,
                 consentVersion: input.consentVersion,
               });
+              yield* repo.create({
+                id: practitionerId,
+                userId,
+                professionId: input.professionId,
+                prefix: input.prefix ?? null,
+                location: input.location ?? null,
+                verificationStatus: "incomplete",
+              });
               yield* repo.grantRole(userId, role);
-              return created;
             }),
           );
+          const created = yield* repo.findByUserId(userId);
+          return created ?? (yield* Effect.dieMessage("practitioner missing after create"));
         }),
 
       presignDocument: (userId, kind, contentType) =>

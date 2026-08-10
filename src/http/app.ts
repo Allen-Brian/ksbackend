@@ -15,6 +15,7 @@ import { registerAdminRoutes } from "@/modules/admin/admin.routes";
 import { registerDependentRoutes } from "@/modules/dependent/dependent.routes";
 import { registerPatientRoutes } from "@/modules/patient/patient.routes";
 import { registerPractitionerRoutes } from "@/modules/practitioner/practitioner.routes";
+import { registerProfileRoutes } from "@/modules/profile/profile.routes";
 import type { AppEnv, AppRuntime } from "./app-env";
 import { toErrorResponse } from "./error-mapper";
 import { registerMeRoute } from "./me.routes";
@@ -151,6 +152,7 @@ export const createApp = (
   });
 
   registerMeRoute(app, runtime);
+  registerProfileRoutes(app, runtime);
   registerPatientRoutes(app, runtime);
   registerPractitionerRoutes(app, runtime);
   registerAdminRoutes(app, runtime);

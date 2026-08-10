@@ -7,5 +7,6 @@ export * from "./dependent";
 export * from "./enums";
 export * from "./patient-profile";
 export * from "./practitioner-profile";
+export * from "./profile";
 export * from "./profession";
 export * from "./verification-review";

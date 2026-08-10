@@ -13,6 +13,8 @@ import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
+import { ProfileRepoLive } from "./modules/profile/profile.repo";
+import { ProfileServiceLive } from "./modules/profile/profile.service";
 import { PractitionerRepoLive } from "./modules/practitioner/practitioner.repo";
 import { PractitionerServiceLive } from "./modules/practitioner/practitioner.service";
 
@@ -42,16 +44,28 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const idGen = IdGeneratorLive;
   const crypto = CryptoLive;
 
+  const profileRepo = ProfileRepoLive.pipe(Layer.provide(database));
   const patientRepo = PatientRepoLive.pipe(Layer.provide(database));
   const practitionerRepo = PractitionerRepoLive.pipe(Layer.provide(database));
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
 
-  const patient = PatientServiceLive.pipe(Layer.provide(Layer.mergeAll(patientRepo, idGen)));
+  const profile = ProfileServiceLive.pipe(Layer.provide(profileRepo));
   // `database` is also given to services that run multi-write transactions
   // (SqlClient.withTransaction) — the repos + service then share one SqlClient.
+  const patient = PatientServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(patientRepo, profileRepo, idGen, database)),
+  );
   const practitioner = PractitionerServiceLive.pipe(
     Layer.provide(
-      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.scanner, infra.storage, database),
+      Layer.mergeAll(
+        practitionerRepo,
+        profileRepo,
+        idGen,
+        crypto,
+        infra.scanner,
+        infra.storage,
+        database,
+      ),
     ),
   );
   const admin = AdminServiceLive.pipe(
@@ -63,6 +77,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const health = HealthLive.pipe(Layer.provide(database));
 
   return Layer.mergeAll(
+    profile,
     patient,
     practitioner,
     admin,

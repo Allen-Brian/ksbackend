@@ -92,7 +92,7 @@ describe("account lifecycle (real DB)", () => {
     const users = await harness.db.select({ id: user.id }).from(user).where(eq(user.email, email));
     expect(users.length).toBe(0);
     const profiles = await harness.db
-      .select({ id: patientProfile.id })
+      .select({ userId: patientProfile.userId })
       .from(patientProfile)
       .where(eq(patientProfile.userId, userId ?? ""));
     expect(profiles.length).toBe(0);

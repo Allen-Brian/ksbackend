@@ -68,18 +68,12 @@ CREATE TABLE "dependent" (
 );
 --> statement-breakpoint
 CREATE TABLE "patient_profile" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
-	"surname" text NOT NULL,
-	"given_names" text NOT NULL,
-	"phone" text,
-	"date_of_birth" date NOT NULL,
-	"sex" "sex" NOT NULL,
-	"consent_accepted_at" timestamp with time zone NOT NULL,
-	"consent_version" text NOT NULL,
+	"user_id" text PRIMARY KEY NOT NULL,
+	"emergency_contact_name" text,
+	"emergency_contact_phone" text,
+	"emergency_contact_relationship" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "patient_profile_user_id_unique" UNIQUE("user_id")
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "practitioner_profile" (
@@ -87,11 +81,6 @@ CREATE TABLE "practitioner_profile" (
 	"user_id" text NOT NULL,
 	"profession_id" uuid NOT NULL,
 	"prefix" text,
-	"surname" text NOT NULL,
-	"given_names" text NOT NULL,
-	"phone" text,
-	"date_of_birth" date,
-	"sex" "sex",
 	"location" text,
 	"cmc_number_encrypted" text,
 	"cmc_number_hmac" text,
@@ -101,13 +90,26 @@ CREATE TABLE "practitioner_profile" (
 	"nic_file_key" text,
 	"profile_photo_file_key" text,
 	"verification_status" "verification_status" DEFAULT 'incomplete' NOT NULL,
-	"consent_accepted_at" timestamp with time zone NOT NULL,
-	"consent_version" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "practitioner_profile_user_id_unique" UNIQUE("user_id"),
 	CONSTRAINT "practitioner_profile_cmc_number_hmac_unique" UNIQUE("cmc_number_hmac"),
 	CONSTRAINT "practitioner_profile_nic_number_hmac_unique" UNIQUE("nic_number_hmac")
+);
+--> statement-breakpoint
+CREATE TABLE "profile" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"surname" text NOT NULL,
+	"given_names" text NOT NULL,
+	"phone" text,
+	"date_of_birth" date,
+	"sex" "sex",
+	"consent_accepted_at" timestamp with time zone NOT NULL,
+	"consent_version" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "profession" (
@@ -133,6 +135,7 @@ ALTER TABLE "dependent" ADD CONSTRAINT "dependent_account_holder_user_id_user_id
 ALTER TABLE "patient_profile" ADD CONSTRAINT "patient_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_profession_id_profession_id_fk" FOREIGN KEY ("profession_id") REFERENCES "public"."profession"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile" ADD CONSTRAINT "profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "verification_review" ADD CONSTRAINT "verification_review_practitioner_profile_id_practitioner_profile_id_fk" FOREIGN KEY ("practitioner_profile_id") REFERENCES "public"."practitioner_profile"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "verification_review" ADD CONSTRAINT "verification_review_reviewer_user_id_user_id_fk" FOREIGN KEY ("reviewer_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
