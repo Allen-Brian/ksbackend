@@ -16,6 +16,7 @@ const toDomain = (row: Row): Profile => ({
   phone: row.phone,
   dateOfBirth: row.dateOfBirth,
   sex: row.sex,
+  avatarFileKey: row.avatarFileKey,
   consentAcceptedAt: row.consentAcceptedAt,
   consentVersion: row.consentVersion,
 });
@@ -87,6 +88,7 @@ export const ProfileRepoLive = Layer.effect(
             ...(values.phone !== undefined && { phone: values.phone }),
             ...(values.dateOfBirth !== undefined && { dateOfBirth: values.dateOfBirth }),
             ...(values.sex !== undefined && { sex: values.sex }),
+            ...(values.avatarFileKey !== undefined && { avatarFileKey: values.avatarFileKey }),
             updatedAt,
           })
           .where(eq(profile.userId, userId))

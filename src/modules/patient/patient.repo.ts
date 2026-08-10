@@ -28,6 +28,7 @@ const toDomain = (base: ProfileRow, patient: PatientRow): Patient => ({
   phone: base.phone,
   dateOfBirth: base.dateOfBirth,
   sex: base.sex,
+  avatarFileKey: base.avatarFileKey,
   consentAcceptedAt: base.consentAcceptedAt,
   consentVersion: base.consentVersion,
   emergencyContact: toEmergencyContact(patient),

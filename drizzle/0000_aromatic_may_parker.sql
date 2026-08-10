@@ -1,3 +1,4 @@
+CREATE TYPE "public"."notification_category" AS ENUM('appointments', 'verification', 'security', 'account');--> statement-breakpoint
 CREATE TYPE "public"."relationship" AS ENUM('child', 'parent', 'spouse', 'sibling', 'other');--> statement-breakpoint
 CREATE TYPE "public"."sex" AS ENUM('male', 'female');--> statement-breakpoint
 CREATE TYPE "public"."verification_decision" AS ENUM('approved', 'rejected');--> statement-breakpoint
@@ -67,6 +68,18 @@ CREATE TABLE "dependent" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "notification_preference" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"category" "notification_category" NOT NULL,
+	"email" boolean NOT NULL,
+	"sms" boolean NOT NULL,
+	"push" boolean NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "notification_preference_user_id_category_unique" UNIQUE("user_id","category")
+);
+--> statement-breakpoint
 CREATE TABLE "patient_profile" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
@@ -107,6 +120,7 @@ CREATE TABLE "profile" (
 	"phone" text,
 	"date_of_birth" date,
 	"sex" "sex",
+	"avatar_file_key" text,
 	"consent_accepted_at" timestamp with time zone NOT NULL,
 	"consent_version" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -134,6 +148,7 @@ CREATE TABLE "verification_review" (
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dependent" ADD CONSTRAINT "dependent_account_holder_user_id_user_id_fk" FOREIGN KEY ("account_holder_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_preference" ADD CONSTRAINT "notification_preference_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "patient_profile" ADD CONSTRAINT "patient_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_profession_id_profession_id_fk" FOREIGN KEY ("profession_id") REFERENCES "public"."profession"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

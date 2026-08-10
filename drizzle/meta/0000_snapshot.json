@@ -1,5 +1,5 @@
 {
-  "id": "bf41d85f-bf19-4f29-9295-27338efb8b53",
+  "id": "9dca7ea8-cf4f-4cae-934e-c3a6976bc403",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -460,6 +460,86 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.notification_preference": {
+      "name": "notification_preference",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "notification_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sms": {
+          "name": "sms",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "push": {
+          "name": "push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notification_preference_user_id_user_id_fk": {
+          "name": "notification_preference_user_id_user_id_fk",
+          "tableFrom": "notification_preference",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "notification_preference_user_id_category_unique": {
+          "name": "notification_preference_user_id_category_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id", "category"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.patient_profile": {
       "name": "patient_profile",
       "schema": "",
@@ -722,6 +802,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "avatar_file_key": {
+          "name": "avatar_file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "consent_accepted_at": {
           "name": "consent_accepted_at",
           "type": "timestamp with time zone",
@@ -889,6 +975,11 @@
     }
   },
   "enums": {
+    "public.notification_category": {
+      "name": "notification_category",
+      "schema": "public",
+      "values": ["appointments", "verification", "security", "account"]
+    },
     "public.relationship": {
       "name": "relationship",
       "schema": "public",

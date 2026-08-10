@@ -18,3 +18,10 @@ export const relationshipEnum = pgEnum("relationship", [
   "sibling",
   "other",
 ]);
+
+export const notificationCategoryEnum = pgEnum("notification_category", [
+  "appointments",
+  "verification",
+  "security",
+  "account",
+]);

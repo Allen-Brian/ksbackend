@@ -9,6 +9,7 @@ export const UpdateProfileBody = z
     phone: phone.nullable().optional(),
     dateOfBirth: z.iso.date().optional(),
     sex: z.enum(["male", "female"]).optional(),
+    avatarFileKey: z.string().min(1).max(300).optional(),
   })
   .openapi("UpdateProfile");
 
@@ -21,5 +22,14 @@ export const ProfileResponse = z
     phone: z.string().nullable(),
     dateOfBirth: z.string().nullable(),
     sex: z.enum(["male", "female"]).nullable(),
+    avatarFileKey: z.string().nullable(),
   })
   .openapi("Profile");
+
+export const AvatarPresignBody = z
+  .object({ contentType: z.enum(["image/jpeg", "image/png"]) })
+  .openapi("AvatarPresign");
+
+export const AvatarPresignResponse = z
+  .object({ url: z.string(), key: z.string() })
+  .openapi("AvatarPresignResult");

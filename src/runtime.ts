@@ -11,6 +11,8 @@ import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/sto
 import { AdminServiceLive } from "./modules/admin/admin.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
+import { NotificationRepoLive } from "./modules/notification/notification.repo";
+import { NotificationServiceLive } from "./modules/notification/notification.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
 import { ProfileRepoLive } from "./modules/profile/profile.repo";
@@ -48,8 +50,14 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const patientRepo = PatientRepoLive.pipe(Layer.provide(database));
   const practitionerRepo = PractitionerRepoLive.pipe(Layer.provide(database));
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
+  const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
 
-  const profile = ProfileServiceLive.pipe(Layer.provide(profileRepo));
+  const profile = ProfileServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
+  );
+  const notification = NotificationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(notificationRepo, idGen)),
+  );
   // `database` is also given to services that run multi-write transactions
   // (SqlClient.withTransaction) — the repos + service then share one SqlClient.
   const patient = PatientServiceLive.pipe(
@@ -78,6 +86,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
 
   return Layer.mergeAll(
     profile,
+    notification,
     patient,
     practitioner,
     admin,

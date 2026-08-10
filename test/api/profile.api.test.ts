@@ -56,6 +56,33 @@ describe("base profile API (real DB)", () => {
     expect(body.phone).toBe("+237650000000");
   });
 
+  it("presigns an avatar and stores the returned (owner-scoped) key", async () => {
+    const presign = await harness.post(
+      "/v1/me/avatar/presign",
+      { contentType: "image/png" },
+      cookie,
+    );
+    expect(presign.status).toBe(200);
+    const { key } = await json<{ url: string; key: string }>(presign);
+    expect(key).toContain("profile-photos/");
+
+    const set = await harness.app.request("/v1/me/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ avatarFileKey: key }),
+    });
+    expect(set.status).toBe(200);
+    expect((await json<{ avatarFileKey: string }>(set)).avatarFileKey).toBe(key);
+
+    // A key that isn't namespaced to this user is rejected.
+    const foreign = await harness.app.request("/v1/me/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ avatarFileKey: "profile-photos/someone-else/x.png" }),
+    });
+    expect(foreign.status).toBe(422);
+  });
+
   it("PATCH 404s for a user with no profile yet", async () => {
     const other = await harness.signUpAndVerify(
       "noprofile@example.com",

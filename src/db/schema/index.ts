@@ -5,6 +5,7 @@
 export * from "./auth";
 export * from "./dependent";
 export * from "./enums";
+export * from "./notification-preference";
 export * from "./patient-profile";
 export * from "./practitioner-profile";
 export * from "./profile";

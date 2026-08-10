@@ -16,6 +16,7 @@ export const profile = pgTable("profile", {
   phone: text("phone"),
   dateOfBirth: date("date_of_birth"),
   sex: sexEnum("sex"),
+  avatarFileKey: text("avatar_file_key"),
   consentAcceptedAt: timestamp("consent_accepted_at", { withTimezone: true }).notNull(),
   consentVersion: text("consent_version").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -14,6 +14,7 @@ export type Profile = {
   readonly phone: string | null;
   readonly dateOfBirth: string | null;
   readonly sex: Sex | null;
+  readonly avatarFileKey: string | null;
   readonly consentAcceptedAt: Date;
   readonly consentVersion: string;
 };
@@ -25,4 +26,5 @@ export type ProfilePatch = {
   readonly phone?: string | null | undefined;
   readonly dateOfBirth?: string | undefined;
   readonly sex?: Sex | undefined;
+  readonly avatarFileKey?: string | undefined;
 };
