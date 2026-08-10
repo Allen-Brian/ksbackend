@@ -1,4 +1,7 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { user } from "@/db/schema/auth";
+import { caregiverLink } from "@/db/schema/caregiver-link";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
@@ -106,6 +109,100 @@ describe("caregiver invitations API (real DB)", () => {
     const token = tokenFor(inviteeEmail);
     // A different user (the caregiver) tries to accept an invite addressed elsewhere.
     expect((await harness.post(`/v1/invitations/${token}/accept`, {}, caregiver)).status).toBe(403);
+  });
+
+  it("decline: marks the link declined and blocks a later accept", async () => {
+    const inviteeEmail = "decliner@example.com";
+    const inviteeCookie = await harness.signUpAndVerify(inviteeEmail, "password12345", "Dec Liner");
+    await harness.post(
+      "/v1/dependents/invitations",
+      { inviteeEmail, relationship: "parent" },
+      caregiver,
+    );
+    const token = tokenFor(inviteeEmail);
+
+    expect((await harness.post(`/v1/invitations/${token}/decline`, {}, inviteeCookie)).status).toBe(
+      204,
+    );
+    // A declined invitation is terminal — accepting it now conflicts.
+    expect((await harness.post(`/v1/invitations/${token}/accept`, {}, inviteeCookie)).status).toBe(
+      409,
+    );
+  });
+
+  it("accept: rejects an expired invitation with 409", async () => {
+    const inviteeEmail = "expired-dep@example.com";
+    const inviteeCookie = await harness.signUpAndVerify(inviteeEmail, "password12345", "Exp Ired");
+    const caregiverId =
+      (
+        await harness.db
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.email, "caregiver@example.com"))
+      )[0]?.id ?? "";
+
+    const token = crypto.randomUUID();
+    await harness.db.insert(caregiverLink).values({
+      id: crypto.randomUUID(),
+      caregiverUserId: caregiverId,
+      inviteIdentifier: inviteeEmail,
+      inviteToken: token,
+      relationship: "parent",
+      status: "pending",
+      expiresAt: new Date("2000-01-02T00:00:00.000Z"),
+      invitedAt: new Date("2000-01-01T00:00:00.000Z"),
+    });
+
+    expect((await harness.post(`/v1/invitations/${token}/accept`, {}, inviteeCookie)).status).toBe(
+      409,
+    );
+  });
+
+  it("paginates /v1/me/invitations with an opaque cursor", async () => {
+    // A dedicated caregiver so the page counts are independent of other tests.
+    const pager = await harness.signUpAndVerify("pager@example.com", "password12345", "Pag Er");
+    for (const e of ["pg-a@example.com", "pg-b@example.com", "pg-c@example.com"]) {
+      expect(
+        (
+          await harness.post(
+            "/v1/dependents/invitations",
+            { inviteeEmail: e, relationship: "child" },
+            pager,
+          )
+        ).status,
+      ).toBe(201);
+    }
+
+    const page1 = await json<{
+      data: ReadonlyArray<{ id: string }>;
+      meta: { count: number; hasNextPage: boolean; nextCursor: string | null };
+    }>(await harness.app.request("/v1/me/invitations?limit=2", { headers: { cookie: pager } }));
+    expect(page1.data.length).toBe(2);
+    expect(page1.meta.hasNextPage).toBe(true);
+    expect(page1.meta.nextCursor).not.toBeNull();
+
+    const page2 = await json<{
+      data: ReadonlyArray<{ id: string }>;
+      meta: { hasNextPage: boolean };
+    }>(
+      await harness.app.request(`/v1/me/invitations?limit=2&cursor=${page1.meta.nextCursor}`, {
+        headers: { cookie: pager },
+      }),
+    );
+    expect(page2.data.length).toBe(1);
+    expect(page2.meta.hasNextPage).toBe(false);
+    // No overlap between pages.
+    const ids1 = new Set(page1.data.map((l) => l.id));
+    expect(page2.data.every((l) => !ids1.has(l.id))).toBe(true);
+
+    // A malformed cursor is a 422, not a 500.
+    expect(
+      (
+        await harness.app.request("/v1/me/invitations?cursor=not-a-cursor", {
+          headers: { cookie: pager },
+        })
+      ).status,
+    ).toBe(422);
   });
 
   it("user search: reports existence only (no PII)", async () => {
