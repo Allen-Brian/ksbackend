@@ -57,17 +57,15 @@ export const DependentServiceLive = Layer.effect(
     return {
       create: (ownerId, input) =>
         Effect.gen(function* () {
-          const id = yield* ids.next;
+          const dependentId = yield* ids.next;
+          const linkId = yield* ids.next;
+          const now = new Date(yield* Clock.currentTimeMillis);
           return yield* repo.create({
-            id,
-            accountHolderUserId: ownerId,
-            surname: input.surname,
-            givenNames: input.givenNames,
-            dateOfBirth: input.dateOfBirth,
-            sex: input.sex,
-            relationship: input.relationship,
-            phone: input.phone ?? null,
-            location: input.location ?? null,
+            caregiverId: ownerId,
+            dependentId,
+            linkId,
+            values: input,
+            now,
           });
         }),
 
@@ -83,7 +81,7 @@ export const DependentServiceLive = Layer.effect(
             }
             beforeId = decoded;
           }
-          const rows = yield* repo.listByOwner(ownerId, limit + 1, beforeId);
+          const rows = yield* repo.listByCaregiver(ownerId, limit + 1, beforeId);
           const hasNextPage = rows.length > limit;
           const data = hasNextPage ? rows.slice(0, limit) : rows;
           const last = data.at(-1);
@@ -100,7 +98,7 @@ export const DependentServiceLive = Layer.effect(
 
       get: (ownerId, id) =>
         repo
-          .findForOwner(ownerId, id)
+          .findForCaregiver(ownerId, id)
           .pipe(
             Effect.flatMap((found) =>
               found === undefined
@@ -111,12 +109,9 @@ export const DependentServiceLive = Layer.effect(
 
       update: (ownerId, id, patch) =>
         Effect.gen(function* () {
-          // An all-optional body can be empty; issuing `.set({})` makes Drizzle
-          // throw ("No values to set"). Treat a no-op patch as a plain read.
-          const hasChanges = Object.values(patch).some((value) => value !== undefined);
-          const updated = hasChanges
-            ? yield* repo.update(ownerId, id, patch)
-            : yield* repo.findForOwner(ownerId, id);
+          // An empty patch is a no-op read — the repo skips the empty `.set({})`.
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const updated = yield* repo.update(ownerId, id, patch, now);
           return updated === undefined
             ? yield* Effect.fail(new NotFound({ resource: "Dependent", id }))
             : updated;
@@ -125,7 +120,7 @@ export const DependentServiceLive = Layer.effect(
       remove: (ownerId, id) =>
         Effect.gen(function* () {
           const now = new Date(yield* Clock.currentTimeMillis);
-          const deleted = yield* repo.softDelete(ownerId, id, now);
+          const deleted = yield* repo.unlink(ownerId, id, now);
           if (!deleted) {
             return yield* Effect.fail(new NotFound({ resource: "Dependent", id }));
           }

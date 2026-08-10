@@ -1,5 +1,5 @@
 {
-  "id": "10a0fcdb-afde-45ef-a151-551ada3c5749",
+  "id": "20dbe4ef-6373-40b2-90be-1a286a56e907",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -423,8 +423,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.dependent": {
-      "name": "dependent",
+    "public.caregiver_link": {
+      "name": "caregiver_link",
       "schema": "",
       "columns": {
         "id": {
@@ -433,10 +433,133 @@
           "primaryKey": true,
           "notNull": true
         },
-        "account_holder_user_id": {
-          "name": "account_holder_user_id",
+        "caregiver_user_id": {
+          "name": "caregiver_user_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "managed_dependent_id": {
+          "name": "managed_dependent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_user_id": {
+          "name": "subject_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relationship": {
+          "name": "relationship",
+          "type": "relationship",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "caregiver_link_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invite_identifier": {
+          "name": "invite_identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invite_token": {
+          "name": "invite_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invited_at": {
+          "name": "invited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "caregiver_link_caregiver_user_id_user_id_fk": {
+          "name": "caregiver_link_caregiver_user_id_user_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "user",
+          "columnsFrom": ["caregiver_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "caregiver_link_managed_dependent_id_dependent_id_fk": {
+          "name": "caregiver_link_managed_dependent_id_dependent_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "dependent",
+          "columnsFrom": ["managed_dependent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "caregiver_link_subject_user_id_user_id_fk": {
+          "name": "caregiver_link_subject_user_id_user_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "user",
+          "columnsFrom": ["subject_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "caregiver_link_invite_token_unique": {
+          "name": "caregiver_link_invite_token_unique",
+          "nullsNotDistinct": false,
+          "columns": ["invite_token"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dependent": {
+      "name": "dependent",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
           "notNull": true
         },
         "surname": {
@@ -460,13 +583,6 @@
         "sex": {
           "name": "sex",
           "type": "sex",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "relationship": {
-          "name": "relationship",
-          "type": "relationship",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -505,17 +621,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "dependent_account_holder_user_id_user_id_fk": {
-          "name": "dependent_account_holder_user_id_user_id_fk",
-          "tableFrom": "dependent",
-          "tableTo": "user",
-          "columnsFrom": ["account_holder_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1071,6 +1177,11 @@
       "name": "admin_scope",
       "schema": "public",
       "values": ["super_admin", "verification_reviewer"]
+    },
+    "public.caregiver_link_status": {
+      "name": "caregiver_link_status",
+      "schema": "public",
+      "values": ["pending", "active", "revoked", "declined"]
     },
     "public.notification_category": {
       "name": "notification_category",

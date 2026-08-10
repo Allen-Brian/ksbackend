@@ -1,19 +1,15 @@
 import { date, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { user } from "./auth";
-import { relationshipEnum, sexEnum } from "./enums";
+import { sexEnum } from "./enums";
 
-// A dependent PERSON (no login) that an account holder books care for. Distinct
-// from the "dependent" role. Soft-deleted so history survives.
+// A dependent PERSON (no login) that account holders book care for. Ownership +
+// the per-caregiver relationship live on `caregiver_link` (M:N) — a dependent can
+// have several caregivers. Soft-deleted so history survives.
 export const dependent = pgTable("dependent", {
   id: uuid("id").primaryKey(),
-  accountHolderUserId: text("account_holder_user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
   surname: text("surname").notNull(),
   givenNames: text("given_names").notNull(),
   dateOfBirth: date("date_of_birth").notNull(),
   sex: sexEnum("sex").notNull(),
-  relationship: relationshipEnum("relationship").notNull(),
   phone: text("phone"),
   location: text("location"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

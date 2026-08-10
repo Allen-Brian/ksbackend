@@ -1,4 +1,5 @@
 CREATE TYPE "public"."admin_scope" AS ENUM('super_admin', 'verification_reviewer');--> statement-breakpoint
+CREATE TYPE "public"."caregiver_link_status" AS ENUM('pending', 'active', 'revoked', 'declined');--> statement-breakpoint
 CREATE TYPE "public"."notification_category" AS ENUM('appointments', 'verification', 'security', 'account');--> statement-breakpoint
 CREATE TYPE "public"."relationship" AS ENUM('child', 'parent', 'spouse', 'sibling', 'other');--> statement-breakpoint
 CREATE TYPE "public"."sex" AS ENUM('male', 'female');--> statement-breakpoint
@@ -63,14 +64,29 @@ CREATE TABLE "verification" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "caregiver_link" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"caregiver_user_id" text NOT NULL,
+	"managed_dependent_id" uuid,
+	"subject_user_id" text,
+	"relationship" "relationship" NOT NULL,
+	"status" "caregiver_link_status" NOT NULL,
+	"invite_identifier" text,
+	"invite_token" text,
+	"expires_at" timestamp with time zone,
+	"invited_at" timestamp with time zone,
+	"responded_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "caregiver_link_invite_token_unique" UNIQUE("invite_token")
+);
+--> statement-breakpoint
 CREATE TABLE "dependent" (
 	"id" uuid PRIMARY KEY NOT NULL,
-	"account_holder_user_id" text NOT NULL,
 	"surname" text NOT NULL,
 	"given_names" text NOT NULL,
 	"date_of_birth" date NOT NULL,
 	"sex" "sex" NOT NULL,
-	"relationship" "relationship" NOT NULL,
 	"phone" text,
 	"location" text,
 	"deleted_at" timestamp with time zone,
@@ -163,7 +179,9 @@ CREATE TABLE "verification_review" (
 ALTER TABLE "admin_profile" ADD CONSTRAINT "admin_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dependent" ADD CONSTRAINT "dependent_account_holder_user_id_user_id_fk" FOREIGN KEY ("account_holder_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_caregiver_user_id_user_id_fk" FOREIGN KEY ("caregiver_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_managed_dependent_id_dependent_id_fk" FOREIGN KEY ("managed_dependent_id") REFERENCES "public"."dependent"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "caregiver_link" ADD CONSTRAINT "caregiver_link_subject_user_id_user_id_fk" FOREIGN KEY ("subject_user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_preference" ADD CONSTRAINT "notification_preference_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "patient_profile" ADD CONSTRAINT "patient_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practitioner_profile" ADD CONSTRAINT "practitioner_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

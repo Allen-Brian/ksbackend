@@ -27,3 +27,10 @@ export const notificationCategoryEnum = pgEnum("notification_category", [
 ]);
 
 export const adminScopeEnum = pgEnum("admin_scope", ["super_admin", "verification_reviewer"]);
+
+export const caregiverLinkStatusEnum = pgEnum("caregiver_link_status", [
+  "pending",
+  "active",
+  "revoked",
+  "declined",
+]);
