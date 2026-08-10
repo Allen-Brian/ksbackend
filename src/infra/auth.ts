@@ -176,13 +176,13 @@ export const loadAuthOptions = Effect.gen(function* () {
 });
 
 /** The authenticated user for the current request. */
-export interface AuthUser {
+export type AuthUser = {
   readonly id: string;
   readonly email: string;
   readonly name: string;
   readonly roles: ReadonlyArray<Role>;
   readonly locale: Locale;
-}
+};
 
 /**
  * The current authenticated user as an Effect service, provided PER-REQUEST from

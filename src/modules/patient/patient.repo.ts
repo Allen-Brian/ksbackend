@@ -56,7 +56,7 @@ export const PatientRepoLive = Layer.effect(
               phone: values.phone,
               dateOfBirth: values.dateOfBirth,
               sex: values.sex,
-              updatedAt: new Date(values.consentAcceptedAt),
+              updatedAt: values.consentAcceptedAt,
             },
           })
           .returning()

@@ -6,7 +6,7 @@ import { user } from "@/db/schema/auth";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import { verificationReview } from "@/db/schema/verification-review";
 import type { Locale } from "@/infra/i18n";
-import type { Practitioner, Sex, VerificationStatus } from "@/domain/practitioner/practitioner";
+import type { Practitioner, VerificationStatus } from "@/domain/practitioner/practitioner";
 import { parseRoles, type Role, serializeRoles } from "@/infra/auth";
 
 type Row = typeof practitionerProfile.$inferSelect;
@@ -231,6 +231,3 @@ export const PractitionerRepoLive = Layer.effect(
     } satisfies PractitionerRepoService;
   }),
 );
-
-// Re-export for the service's mapping convenience.
-export type { Sex };
