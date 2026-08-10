@@ -2,11 +2,13 @@ import { DeleteObjectsCommand, S3Client } from "@aws-sdk/client-s3";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer, emailOTP, openAPI } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Config, Context, Effect, Redacted } from "effect";
 import * as authSchema from "@/db/schema/auth";
 import { user } from "@/db/schema/auth";
+import { caregiverLink } from "@/db/schema/caregiver-link";
+import { dependent } from "@/db/schema/dependent";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import type { EmailClient } from "./email";
 import { renderEmail } from "./email-render";
@@ -106,8 +108,43 @@ export const makeAuth = (options: AuthOptions) => {
       },
       deleteUser: {
         enabled: true,
-        // DB rows (profiles, dependents) cascade via FKs; here we clean up S3.
+        // Profiles, links, and consent audit cascade via FKs. Two things do not
+        // and are handled here before the user row goes away: (1) managed
+        // dependent person records — the FK points from caregiver_link TO
+        // dependent, so a cascaded link never removes the dependent it named;
+        // (2) S3 objects, which no FK can reach.
         beforeDelete: async (deleted) => {
+          // Managed dependents linked to this caregiver. Hard-delete only those
+          // this user solely manages (mirrors unlink's "last caregiver" rule);
+          // deleting each dependent cascades its remaining links. Shared
+          // dependents survive — their link to this user cascades on user delete.
+          const mine = await db
+            .select({ id: caregiverLink.managedDependentId })
+            .from(caregiverLink)
+            .where(
+              and(
+                eq(caregiverLink.caregiverUserId, deleted.id),
+                isNotNull(caregiverLink.managedDependentId),
+              ),
+            );
+          const mineIds = mine.map((r) => r.id).filter((id): id is string => id !== null);
+          if (mineIds.length > 0) {
+            const shared = await db
+              .select({ id: caregiverLink.managedDependentId })
+              .from(caregiverLink)
+              .where(
+                and(
+                  ne(caregiverLink.caregiverUserId, deleted.id),
+                  inArray(caregiverLink.managedDependentId, mineIds),
+                ),
+              );
+            const sharedIds = new Set(shared.map((r) => r.id));
+            const soleIds = mineIds.filter((id) => !sharedIds.has(id));
+            if (soleIds.length > 0) {
+              await db.delete(dependent).where(inArray(dependent.id, soleIds));
+            }
+          }
+
           if (options.s3 === undefined) return;
           const rows = await db
             .select({
