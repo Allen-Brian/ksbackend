@@ -1,6 +1,6 @@
 import { SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { profile } from "@/db/schema/profile";
 import type { Profile, ProfilePatch } from "@/domain/profile/profile";
@@ -52,14 +52,18 @@ export const ProfileRepoLive = Layer.effect(
         db
           .insert(profile)
           .values(values)
+          // A base profile may already exist (a patient later registers as a
+          // practitioner, or vice versa). Names + fresh consent are always
+          // provided, but optional identity fields must be PRESERVED when the
+          // incoming value is null — otherwise the second role wipes them.
           .onConflictDoUpdate({
             target: profile.userId,
             set: {
               surname: values.surname,
               givenNames: values.givenNames,
-              phone: values.phone,
-              dateOfBirth: values.dateOfBirth,
-              sex: values.sex,
+              phone: sql`coalesce(excluded.phone, ${profile.phone})`,
+              dateOfBirth: sql`coalesce(excluded.date_of_birth, ${profile.dateOfBirth})`,
+              sex: sql`coalesce(excluded.sex, ${profile.sex})`,
               consentAcceptedAt: values.consentAcceptedAt,
               consentVersion: values.consentVersion,
               updatedAt: values.consentAcceptedAt,

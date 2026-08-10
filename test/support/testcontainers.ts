@@ -4,6 +4,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Effect, Layer, Redacted } from "effect";
+import { pgTypeConfig } from "@/infra/db";
 
 // Apply the committed drizzle migrations to the fresh container so DB-backed
 // tests run against the real schema (no drift — same migrations as production).
@@ -14,7 +15,9 @@ const applyMigrations = async (url: string): Promise<void> => {
 
 /** The Effect database layer pointed at a given Postgres URL. */
 export const databaseLayerFromUrl = (url: string) =>
-  PgDrizzle.layer.pipe(Layer.provideMerge(PgClient.layer({ url: Redacted.make(url) })));
+  PgDrizzle.layer.pipe(
+    Layer.provideMerge(PgClient.layer({ url: Redacted.make(url), types: pgTypeConfig })),
+  );
 
 /**
  * A live database layer backed by a throwaway, migrated Postgres container.

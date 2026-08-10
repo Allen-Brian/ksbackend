@@ -1,5 +1,5 @@
 {
-  "id": "a19036ba-9786-4565-94ad-a81d1f9ce237",
+  "id": "bf41d85f-bf19-4f29-9295-27338efb8b53",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -464,10 +464,16 @@
       "name": "patient_profile",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "emergency_contact_name": {
@@ -516,7 +522,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "patient_profile_user_id_unique": {
+          "name": "patient_profile_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

@@ -54,6 +54,53 @@ describe("registration flows (real DB)", () => {
     expect((await harness.app.request("/v1/patients/me/profile")).status).toBe(401);
   });
 
+  it("multi-role: registering as practitioner preserves base fields set as a patient", async () => {
+    const cookie = await harness.signUpAndVerify("both@example.com", "password12345", "Both Roles");
+    // As a patient: set phone + DOB on the base profile.
+    expect(
+      (
+        await harness.post(
+          "/v1/patients/me/profile",
+          {
+            surname: "Both",
+            givenNames: "Role",
+            phone: "+237650000009",
+            dateOfBirth: "1985-06-15",
+            sex: "female",
+            consentVersion: "1.0",
+            acceptTerms: true,
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+
+    // Later register as a practitioner WITHOUT re-supplying phone/DOB.
+    expect(
+      (
+        await harness.post(
+          "/v1/practitioners/register",
+          {
+            role: "doctor",
+            professionId: PROFESSION_ID,
+            surname: "Both",
+            givenNames: "Role",
+            consentVersion: "1.0",
+            acceptTerms: true,
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(201);
+
+    // The base profile must still carry the patient-set phone + DOB (not nulled).
+    const base = await json<{ phone: string | null; dateOfBirth: string | null }>(
+      await harness.app.request("/v1/me/profile", { headers: { cookie } }),
+    );
+    expect(base.phone).toBe("+237650000009");
+    expect(base.dateOfBirth).toBe("1985-06-15");
+  });
+
   it("practitioner: register -> submit credentials -> admin approves", async () => {
     const docCookie = await harness.signUpAndVerify(
       "doctor@example.com",

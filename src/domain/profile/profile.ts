@@ -18,16 +18,6 @@ export type Profile = {
   readonly consentVersion: string;
 };
 
-/** Base identity captured when a profile is first created (signup/registration). */
-export type ProfileInput = {
-  readonly surname: string;
-  readonly givenNames: string;
-  readonly phone?: string | undefined;
-  readonly dateOfBirth?: string | undefined;
-  readonly sex?: Sex | undefined;
-  readonly consentVersion: string;
-};
-
 /** Editable base-profile fields (PATCH /v1/me/profile). Consent is not editable. */
 export type ProfilePatch = {
   readonly surname?: string | undefined;

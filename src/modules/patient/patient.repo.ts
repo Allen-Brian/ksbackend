@@ -37,6 +37,7 @@ export interface PatientRepoService {
   readonly findByUserId: (userId: string) => Effect.Effect<Patient | undefined, SqlError.SqlError>;
   /** Create-or-update the patient marker + emergency contact (idempotent). */
   readonly upsert: (
+    id: string,
     userId: string,
     emergencyContact: EmergencyContact | null,
     updatedAt: Date,
@@ -62,10 +63,11 @@ export const PatientRepoLive = Layer.effect(
             Effect.map((rows) => (rows[0] ? toDomain(rows[0].base, rows[0].patient) : undefined)),
           ),
 
-      upsert: (userId, emergencyContact, updatedAt) =>
+      upsert: (id, userId, emergencyContact, updatedAt) =>
         db
           .insert(patientProfile)
           .values({
+            id,
             userId,
             emergencyContactName: emergencyContact?.name ?? null,
             emergencyContactPhone: emergencyContact?.phone ?? null,
