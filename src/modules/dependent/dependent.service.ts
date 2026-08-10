@@ -110,15 +110,17 @@ export const DependentServiceLive = Layer.effect(
           ),
 
       update: (ownerId, id, patch) =>
-        repo
-          .update(ownerId, id, patch)
-          .pipe(
-            Effect.flatMap((updated) =>
-              updated === undefined
-                ? Effect.fail(new NotFound({ resource: "Dependent", id }))
-                : Effect.succeed(updated),
-            ),
-          ),
+        Effect.gen(function* () {
+          // An all-optional body can be empty; issuing `.set({})` makes Drizzle
+          // throw ("No values to set"). Treat a no-op patch as a plain read.
+          const hasChanges = Object.values(patch).some((value) => value !== undefined);
+          const updated = hasChanges
+            ? yield* repo.update(ownerId, id, patch)
+            : yield* repo.findForOwner(ownerId, id);
+          return updated === undefined
+            ? yield* Effect.fail(new NotFound({ resource: "Dependent", id }))
+            : updated;
+        }),
 
       remove: (ownerId, id) =>
         Effect.gen(function* () {

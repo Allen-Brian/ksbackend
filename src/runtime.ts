@@ -47,11 +47,17 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
 
   const patient = PatientServiceLive.pipe(Layer.provide(Layer.mergeAll(patientRepo, idGen)));
+  // `database` is also given to services that run multi-write transactions
+  // (SqlClient.withTransaction) — the repos + service then share one SqlClient.
   const practitioner = PractitionerServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(practitionerRepo, idGen, crypto, infra.scanner, infra.storage)),
+    Layer.provide(
+      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.scanner, infra.storage, database),
+    ),
   );
   const admin = AdminServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(practitionerRepo, idGen, crypto, infra.storage, infra.email)),
+    Layer.provide(
+      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.storage, infra.email, database),
+    ),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
   const health = HealthLive.pipe(Layer.provide(database));

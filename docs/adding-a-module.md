@@ -14,13 +14,14 @@ A literal recipe. Follow the steps in order; each file has one job (see
    bun run db:migrate     # apply it
    ```
 
-3. **Repository** — `src/modules/widget/widget.repo.ts`: an `Effect.Service` depending on
-   `PgDrizzle`. The only place SQL lives. Maps rows ↔ domain; returns tagged errors, not throws.
-   Multi-statement writes use `SqlClient.withTransaction`.
+3. **Repository** — `src/modules/widget/widget.repo.ts`: a `Context.Tag` service + `WidgetRepoLive`
+   (`Layer.effect`) depending on `PgDrizzle`. The only place SQL lives. Maps rows ↔ domain; returns
+   tagged errors, not throws. Multi-statement writes use `SqlClient.withTransaction` (inject
+   `SqlClient` into the service and wrap the repo calls).
 
-4. **Service** — `src/modules/widget/widget.service.ts`: an `Effect.Service` with the business
-   logic. Orchestrates the repo + other services. No HTTP. Name methods with
-   `Effect.fn("Widget.create")`.
+4. **Service** — `src/modules/widget/widget.service.ts`: a `Context.Tag` service + `WidgetServiceLive`
+   (`Layer.effect`) with the business logic. Orchestrates the repo + other services. No HTTP.
+   Optionally wrap methods with `Effect.fn("Widget.create")` for named traces.
 
 5. **Policy** — `src/modules/widget/widget.policy.ts`: authorization decisions as Effects,
    invoked by the service.

@@ -39,8 +39,14 @@ export const FileScannerS3Live = Layer.effect(
                 return "pending";
             }
           }),
-          // A tagging lookup failure shouldn't crash the flow; treat as unscanned.
-          Effect.catchAll(() => Effect.succeed<ScanStatus>("unscanned")),
+          // A tagging lookup failure shouldn't crash the flow; treat as unscanned
+          // (fail-open) — but never silently: surface it so it's observable.
+          Effect.catchAll((cause) =>
+            Effect.logWarning(
+              "GuardDuty tag lookup failed; treating file as unscanned",
+              cause,
+            ).pipe(Effect.zipRight(Effect.succeed<ScanStatus>("unscanned"))),
+          ),
         ),
     };
   }),

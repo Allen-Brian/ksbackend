@@ -1,4 +1,4 @@
-import { SqlError } from "@effect/sql";
+import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
 import type {
   CredentialSubmission,
@@ -76,29 +76,36 @@ export const PractitionerServiceLive = Layer.effect(
     const crypto = yield* Crypto;
     const scanner = yield* FileScanner;
     const storage = yield* FileStorage;
+    const sql = yield* SqlClient.SqlClient;
 
     return {
       register: (userId, role, input) =>
         Effect.gen(function* () {
           const id = yield* ids.next;
           const now = new Date(yield* Clock.currentTimeMillis);
-          const created = yield* repo.create({
-            id,
-            userId,
-            professionId: input.professionId,
-            prefix: input.prefix ?? null,
-            surname: input.surname,
-            givenNames: input.givenNames,
-            phone: input.phone ?? null,
-            dateOfBirth: input.dateOfBirth ?? null,
-            sex: input.sex ?? null,
-            location: input.location ?? null,
-            verificationStatus: "incomplete",
-            consentAcceptedAt: now,
-            consentVersion: input.consentVersion,
-          });
-          yield* repo.grantRole(userId, role);
-          return created;
+          // Profile row + role grant are one atomic unit: never leave a
+          // practitioner_profile without the doctor/nurse role (or vice versa).
+          return yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const created = yield* repo.create({
+                id,
+                userId,
+                professionId: input.professionId,
+                prefix: input.prefix ?? null,
+                surname: input.surname,
+                givenNames: input.givenNames,
+                phone: input.phone ?? null,
+                dateOfBirth: input.dateOfBirth ?? null,
+                sex: input.sex ?? null,
+                location: input.location ?? null,
+                verificationStatus: "incomplete",
+                consentAcceptedAt: now,
+                consentVersion: input.consentVersion,
+              });
+              yield* repo.grantRole(userId, role);
+              return created;
+            }),
+          );
         }),
 
       presignDocument: (userId, kind, contentType) =>
@@ -133,14 +140,17 @@ export const PractitionerServiceLive = Layer.effect(
             );
           }
           const keys = [input.cmcCertificateFileKey, input.nicFileKey, input.profilePhotoFileKey];
-          yield* Effect.forEach(keys, (key) =>
-            scanner
-              .status(key)
-              .pipe(
-                Effect.flatMap((status) =>
-                  status === "infected" ? Effect.fail(new FileInfected({ key })) : Effect.void,
+          yield* Effect.forEach(
+            keys,
+            (key) =>
+              scanner
+                .status(key)
+                .pipe(
+                  Effect.flatMap((status) =>
+                    status === "infected" ? Effect.fail(new FileInfected({ key })) : Effect.void,
+                  ),
                 ),
-              ),
+            { concurrency: "unbounded", discard: true },
           );
           const cmcHmac = crypto.hmac(input.cmcRegistrationNumber);
           const nicHmac = crypto.hmac(input.nicNumber);

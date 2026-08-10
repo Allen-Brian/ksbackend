@@ -16,7 +16,8 @@ import { Glob } from "bun";
 import * as path from "node:path";
 
 const ROLES = ["routes", "service", "repo", "policy", "contract"] as const;
-const isRole = (s: string | undefined): boolean => (ROLES as readonly string[]).includes(s ?? "");
+const ROLE_SET: ReadonlySet<string> = new Set(ROLES);
+const isRole = (s: string | undefined): boolean => ROLE_SET.has(s ?? "");
 
 const errors: string[] = [];
 const fail = (file: string, message: string): void => {
@@ -164,17 +165,63 @@ for (const [index, file] of boundedFiles.entries()) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. No raw try/catch/finally anywhere (src, test, scripts) — errors ride
-//    Effect's typed channel; cleanup uses .finally()/beforeAll-afterAll.
+// 3. Text-based bans that oxlint can't express (conventions, machine-enforced).
+//    Run on comment/string-stripped source so a keyword inside a comment or a
+//    string literal never triggers a false positive. (Type assertions and
+//    ts-directive comments are enforced by oxlint: consistent-type-assertions
+//    and ban-ts-comment.)
 // ---------------------------------------------------------------------------
-const noTryFiles = [...files, ...scan("scripts/**/*.ts")];
-const noTryContents = await Promise.all(noTryFiles.map((file) => Bun.file(file).text()));
-noTryFiles.forEach((file, index) => {
-  if (/\btry\s*\{/.test(noTryContents[index] ?? "")) {
-    fail(
-      file,
-      "raw try/catch is banned — use Effect.try / Effect.tryPromise (or .finally for cleanup)",
-    );
+const textFiles = [...files, ...scan("scripts/**/*.ts")];
+const rawContents = await Promise.all(textFiles.map((file) => Bun.file(file).text()));
+
+/** Blank out comments and string/template literals to avoid false positives. */
+const sanitize = (src: string): string =>
+  src
+    .replaceAll(/\/\*[\S\s]*?\*\//g, " ")
+    .replaceAll(/\/\/[^\n]*/g, " ")
+    .replaceAll(/`(?:\\.|[^`\\])*`/g, " ")
+    .replaceAll(/"(?:\\.|[^"\\])*"/g, " ")
+    .replaceAll(/'(?:\\.|[^'\\])*'/g, " ");
+
+type Ban = {
+  readonly re: RegExp;
+  readonly msg: string;
+  readonly scope: (file: string) => boolean;
+};
+
+const inSrc = (f: string): boolean => f.startsWith("src/");
+const bans: ReadonlyArray<Ban> = [
+  {
+    re: /\btry\s*\{/,
+    msg: "raw try/catch is banned — use Effect.try / Effect.tryPromise (or .finally for cleanup)",
+    scope: () => true,
+  },
+  {
+    re: /Record<[^<>]*,\s*(?:unknown|any)\s*>/,
+    msg: "Record<_, unknown|any> is banned — model the shape explicitly (or decode it)",
+    scope: inSrc,
+  },
+  {
+    re: /\benum\s+[A-Za-z_$]/,
+    msg: "TypeScript `enum` is banned — use a `const` array/object + a union type",
+    scope: inSrc,
+  },
+  {
+    re: /\bnew Date\(\s*\)|\bDate\.now\(\s*\)|\bMath\.random\(\s*\)/,
+    msg: "non-deterministic time/random is banned — use Effect Clock/Random",
+    scope: (f) => inSrc(f) && !f.startsWith("src/db/"),
+  },
+  {
+    re: /\b(?:runPromise|runPromiseExit|runSync|runSyncExit|runFork)\b/,
+    msg: "Effect run* belongs only at the HTTP/server edge — services return Effects",
+    scope: (f) => /^src\/(?:domain|lib|infra|modules)\//.test(f),
+  },
+];
+
+textFiles.forEach((file, index) => {
+  const clean = sanitize(rawContents[index] ?? "");
+  for (const ban of bans) {
+    if (ban.scope(file) && ban.re.test(clean)) fail(file, ban.msg);
   }
 });
 
