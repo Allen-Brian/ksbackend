@@ -27,11 +27,29 @@ const completeProfile = createRoute({
   path: "/v1/patients/me/profile",
   tags: ["Patients"],
   summary: "Create or update the current patient's profile",
+  description: [
+    "Completes (or later updates) the signed-in user's patient profile. In one atomic write it",
+    "saves the shared base identity (name, phone, DOB, sex) plus the optional emergency contact,",
+    "and grants the user the `patient` role. This is the main onboarding call for a care recipient.",
+    "\n\n",
+    "It's an idempotent singleton: there's one patient profile per user, so calling it again edits",
+    "the same record and always returns `200` (never `201`). `acceptTerms` must be the literal",
+    "`true` and `consentVersion` is the terms version being accepted. `emergencyContact` is",
+    "optional; omit it to leave any existing contact as-is. If you only need the role and not a",
+    "full profile, use `POST /v1/me/roles/patient` instead.",
+  ].join(" "),
   request: { body: jsonBody(CompletePatientProfileBody) },
   responses: {
-    200: { ...jsonBody(PatientProfileResponse), description: "Profile saved" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    200: {
+      ...jsonBody(PatientProfileResponse),
+      description: "The saved patient profile (200 on both first completion and later edits).",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: {
+      ...jsonBody(ErrorResponse),
+      description:
+        "A field failed validation (e.g. `acceptTerms` not literally true, bad phone or DOB).",
+    },
   },
 });
 
@@ -40,10 +58,19 @@ const getProfile = createRoute({
   path: "/v1/patients/me/profile",
   tags: ["Patients"],
   summary: "Get the current patient's profile",
+  description: [
+    "Returns the signed-in user's patient profile — the base identity fields plus the emergency",
+    "contact. Returns `404` until the profile has been completed via",
+    "`POST /v1/patients/me/profile`, so a `404` here is the signal to route the user into patient",
+    "onboarding rather than an error to surface.",
+  ].join(" "),
   responses: {
-    200: { ...jsonBody(PatientProfileResponse), description: "The profile" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "No profile yet" },
+    200: { ...jsonBody(PatientProfileResponse), description: "The patient profile." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: {
+      ...jsonBody(ErrorResponse),
+      description: "The user hasn't completed a patient profile yet.",
+    },
   },
 });
 
@@ -52,9 +79,16 @@ const claimRole = createRoute({
   path: "/v1/me/roles/patient",
   tags: ["Patients"],
   summary: "Self-grant the patient role (become a care recipient)",
+  description: [
+    "Grants the signed-in user the `patient` role without completing a full profile — the upgrade",
+    "path for someone who already exists in another role (e.g. a doctor who also wants to receive",
+    "care). Takes no body and returns `204`. It's non-destructive and idempotent: it never clears",
+    "an existing emergency contact or base identity, and calling it when the role is already held",
+    "is a no-op. To capture full patient details, use `POST /v1/patients/me/profile` instead.",
+  ].join(" "),
   responses: {
-    204: { description: "Patient role granted" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
+    204: { description: "Patient role granted (or already held — no body returned)." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
   },
 });
 

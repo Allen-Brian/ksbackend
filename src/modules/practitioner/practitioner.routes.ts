@@ -57,11 +57,22 @@ const register = createRoute({
   path: "/v1/practitioners/register",
   tags: ["Practitioners"],
   summary: "Register the current user as a practitioner",
+  description: [
+    "Step 1 of the practitioner onboarding flow. Creates the practitioner profile in the",
+    "`incomplete` state for the signed-in user. `professionId` is a UUID picked from the",
+    "professions catalog, and `role` chooses doctor vs nurse. Consent works like the patient",
+    "flow — `acceptTerms` must be `true` and `consentVersion` records what was accepted. Next,",
+    "upload documents via `POST /v1/practitioners/me/documents/presign`, then submit credentials",
+    "via `POST /v1/practitioners/me/credentials` to move to `pending_verification`.",
+  ].join(" "),
   request: { body: jsonBody(RegisterPractitionerBody) },
   responses: {
-    201: { ...jsonBody(PractitionerResponse), description: "Registered (incomplete)" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    201: {
+      ...jsonBody(PractitionerResponse),
+      description: "Registered — the profile is now in the `incomplete` state.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: { ...jsonBody(ErrorResponse), description: "A field failed validation." },
   },
 });
 
@@ -70,11 +81,21 @@ const presign = createRoute({
   path: "/v1/practitioners/me/documents/presign",
   tags: ["Practitioners"],
   summary: "Get a presigned URL to upload a verification document",
+  description: [
+    "Step 2 of the onboarding flow — requires an existing (`incomplete`) profile from",
+    "`POST /v1/practitioners/register`. Call this ONCE PER document: `kind` is one of",
+    "`cmc-certificate`, `nic`, or `profile-photo`. Returns a short-lived `{ url, key }`: `PUT`",
+    "the raw file bytes to `url` (no auth header), then keep each returned `key` to pass to",
+    "`POST /v1/practitioners/me/credentials` in step 3.",
+  ].join(" "),
   request: { body: jsonBody(PresignDocumentBody) },
   responses: {
-    200: { ...jsonBody(PresignDocumentResponse), description: "Presigned upload" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Unsupported content type" },
+    200: {
+      ...jsonBody(PresignDocumentResponse),
+      description: "Presigned upload target for one document.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: { ...jsonBody(ErrorResponse), description: "Unsupported content type." },
   },
 });
 
@@ -83,15 +104,30 @@ const submit = createRoute({
   path: "/v1/practitioners/me/credentials",
   tags: ["Practitioners"],
   summary: "Submit credentials for verification",
+  description: [
+    "Step 3 of the onboarding flow — requires that you've already presigned and uploaded all",
+    "three documents in step 2. Submit `cmcRegistrationNumber` (Cameroon Medical Council) and",
+    "`nicNumber` (national ID card) together with the three file `key`s returned by the presign",
+    "calls. On success the profile moves to `pending_verification`, and an admin then approves or",
+    "rejects it. Returns `409` if the licence number is already registered to another",
+    "practitioner or the profile isn't ready to submit.",
+  ].join(" "),
   request: { body: jsonBody(SubmitCredentialsBody) },
   responses: {
-    200: { ...jsonBody(PractitionerResponse), description: "Submitted for verification" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
+    200: {
+      ...jsonBody(PractitionerResponse),
+      description: "Submitted — the profile is now `pending_verification`.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
     409: {
       ...jsonBody(ErrorResponse),
-      description: "Licence already registered / profile incomplete",
+      description:
+        "Licence already registered, or the profile isn't in a state that can be submitted.",
     },
-    422: { ...jsonBody(ErrorResponse), description: "A file failed the security scan" },
+    422: {
+      ...jsonBody(ErrorResponse),
+      description: "A field failed validation or a file failed the security scan.",
+    },
   },
 });
 
@@ -100,10 +136,16 @@ const getMine = createRoute({
   path: "/v1/practitioners/me",
   tags: ["Practitioners"],
   summary: "Get the current practitioner profile + verification status",
+  description: [
+    "The signed-in practitioner's OWN full record, including private fields (phone, dateOfBirth,",
+    "sex) and the `verificationStatus` (`incomplete` | `pending_verification` | `verified` |",
+    "`rejected`). Use this to drive the onboarding UI — poll it to see when an admin has verified",
+    "or rejected the profile. Returns `404` if the signed-in user isn't a practitioner.",
+  ].join(" "),
   responses: {
-    200: { ...jsonBody(PractitionerResponse), description: "The profile" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "Not a practitioner" },
+    200: { ...jsonBody(PractitionerResponse), description: "The practitioner's own full record." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "The signed-in user isn't a practitioner." },
   },
 });
 
@@ -112,12 +154,19 @@ const updatePublic = createRoute({
   path: "/v1/practitioners/me",
   tags: ["Practitioners"],
   summary: "Update the current practitioner's public/bookable profile",
+  description: [
+    "Partial update of the PUBLIC, bookable fields only — `prefix`, `location`, `specialty`,",
+    "`bio`, `languagesSpoken` (≤10), `yearsExperience` (0–80), and `consultationFeeXaf`. All",
+    "fields are optional; send only what you want to change. Identity fields (name, phone, DOB,",
+    "sex) are NOT editable here — those live on the base profile. Editing is allowed at any",
+    "verification status and does not change it.",
+  ].join(" "),
   request: { body: jsonBody(UpdatePublicProfileBody) },
   responses: {
-    200: { ...jsonBody(PractitionerResponse), description: "Updated" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "Not a practitioner" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    200: { ...jsonBody(PractitionerResponse), description: "The updated practitioner record." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "The signed-in user isn't a practitioner." },
+    422: { ...jsonBody(ErrorResponse), description: "A field failed validation." },
   },
 });
 
@@ -126,11 +175,31 @@ const getPublic = createRoute({
   path: "/v1/practitioners/{id}",
   tags: ["Practitioners"],
   summary: "Get a verified practitioner's public profile",
-  request: { params: z.object({ id: z.uuid() }) },
+  description: [
+    "The PUBLIC, bookable view of a practitioner — what patients see when browsing. Returns",
+    "VERIFIED practitioners only: an unverified practitioner and an unknown id both return `404`",
+    "(treat them the same in the UI — don't reveal that the id exists). Deliberately EXCLUDES",
+    "phone, dateOfBirth, sex, and the CMC/NIC identifiers. `photoUrl` is a presigned download URL",
+    "for the profile photo (nullable).",
+  ].join(" "),
+  request: {
+    params: z.object({
+      id: z.uuid().openapi({
+        description: "Practitioner profile id.",
+        example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+      }),
+    }),
+  },
   responses: {
-    200: { ...jsonBody(PublicPractitionerResponse), description: "The public profile" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "Not found or not verified" },
+    200: {
+      ...jsonBody(PublicPractitionerResponse),
+      description: "The verified practitioner's public profile.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: {
+      ...jsonBody(ErrorResponse),
+      description: "No verified practitioner with that id (unknown or unverified).",
+    },
   },
 });
 

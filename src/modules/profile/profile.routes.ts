@@ -31,10 +31,15 @@ const getProfile = createRoute({
   path: "/v1/me/profile",
   tags: ["Profile"],
   summary: "Get the current user's base profile",
+  description: [
+    "The shared base profile — the single source of identity (name, phone, DOB, sex, avatar)",
+    "that every role the user holds reads from. Returns `404` if the user hasn't created a",
+    "profile yet (e.g. a brand-new account that hasn't completed patient/practitioner setup).",
+  ].join(" "),
   responses: {
-    200: { ...jsonBody(ProfileResponse), description: "The base profile" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "No profile yet" },
+    200: { ...jsonBody(ProfileResponse), description: "The base profile." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "This user has no profile yet." },
   },
 });
 
@@ -43,12 +48,18 @@ const updateProfile = createRoute({
   path: "/v1/me/profile",
   tags: ["Profile"],
   summary: "Update the current user's base profile",
+  description: [
+    "Partial update — send only the fields you want to change; omitted fields are left as-is.",
+    "To set an avatar, first call `POST /v1/me/avatar/presign`, PUT the image to the returned",
+    "url, then send the returned `key` here as `avatarFileKey`. Because identity is shared across",
+    "roles, editing here is reflected everywhere the user appears.",
+  ].join(" "),
   request: { body: jsonBody(UpdateProfileBody) },
   responses: {
-    200: { ...jsonBody(ProfileResponse), description: "Updated" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "No profile yet" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    200: { ...jsonBody(ProfileResponse), description: "The updated base profile." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "This user has no profile yet." },
+    422: { ...jsonBody(ErrorResponse), description: "A field failed validation." },
   },
 });
 
@@ -57,11 +68,16 @@ const presignAvatar = createRoute({
   path: "/v1/me/avatar/presign",
   tags: ["Profile"],
   summary: "Get a presigned URL to upload a profile avatar",
+  description: [
+    "Step 1 of the avatar upload. Returns a short-lived `{ url, key }`: `PUT` the raw image bytes",
+    "to `url` (no auth header), then send `key` as `avatarFileKey` on `PATCH /v1/me/profile`.",
+    "Only JPEG and PNG are accepted.",
+  ].join(" "),
   request: { body: jsonBody(AvatarPresignBody) },
   responses: {
-    200: { ...jsonBody(AvatarPresignResponse), description: "Presigned upload" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Unsupported content type" },
+    200: { ...jsonBody(AvatarPresignResponse), description: "Presigned upload target." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: { ...jsonBody(ErrorResponse), description: "Unsupported content type." },
   },
 });
 

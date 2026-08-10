@@ -164,7 +164,82 @@ export const createApp = (
 
   app.doc31("/openapi.json", {
     openapi: "3.1.0",
-    info: { title: "kanasante API", version: "0.0.0" },
+    info: {
+      title: "KanaSanté API",
+      version: "0.0.0",
+      description: [
+        "REST API for KanaSanté — diaspora members book and pay for healthcare on behalf of",
+        "dependents back home. This reference is generated from the same Zod schemas the",
+        "handlers validate against, so it never drifts from the implementation.",
+        "",
+        "## Conventions",
+        "",
+        "- **Auth** — Authentication is handled by better-auth under `/api/auth/*` (documented",
+        "  separately by better-auth). Every `/v1/*` route needs a valid session cookie; without",
+        "  one you get `401 UNAUTHORIZED`. A few reads are role/scope-gated (`403`).",
+        "- **Errors** — Uniform envelope on every non-2xx:",
+        "  `{ error: { code, message, details }, requestId }`. `code` is a stable machine string",
+        "  (e.g. `VALIDATION_FAILED`, `NOT_FOUND`, `CONFLICT`); `message` is localized (en/fr).",
+        "- **Single resource** — returned as a bare object. **Lists** — always the cursor-paginated",
+        "  envelope `{ data, meta }` where `meta = { count, limit, nextCursor, hasNextPage }`.",
+        "  Page forward by passing `?cursor=<meta.nextCursor>` until `hasNextPage` is false.",
+        "- **File uploads** — two steps: `POST …/presign` to get a short-lived `{ url, key }`, then",
+        "  `PUT` the bytes straight to `url`, then send the `key` back on the relevant write.",
+        "- **Formats** — phone numbers are E.164 (`+2376…`); dates (DOB) are `YYYY-MM-DD`; ids are UUID.",
+        "",
+        "## Typical flows (call order)",
+        "",
+        "**Any user onboarding** — `POST /api/auth/sign-up/email` → verify the emailed OTP →",
+        "`POST /api/auth/sign-in/email`. Then `GET /v1/me` for identity + roles.",
+        "",
+        "**Patient / caregiver** — complete identity via `POST /v1/patients/me/profile` (this also",
+        "grants the `patient` role and stores the emergency contact). Manage care recipients under",
+        "**Dependents** below. Any user can also self-serve the role with `POST /v1/me/roles/patient`.",
+        "",
+        "**Practitioner (doctor/nurse)** — `POST /v1/practitioners/register` → upload each document",
+        "with `POST /v1/practitioners/me/documents/presign` (×3: CMC certificate, NIC, photo) →",
+        "`POST /v1/practitioners/me/credentials` with the returned keys (moves to",
+        "`pending_verification`) → an admin approves/rejects. Edit the public profile anytime with",
+        "`PATCH /v1/practitioners/me`; the bookable public view is `GET /v1/practitioners/{id}`.",
+        "",
+        "**Managed dependents** (no login of their own) — full CRUD under `/v1/dependents`. A",
+        "dependent may have several caregivers; `DELETE` unlinks the caller and only soft-deletes",
+        "the person when the last caregiver leaves.",
+        "",
+        "**Linked dependents** (an existing account-holder) — `POST /v1/dependents/invitations`",
+        "emails them a token → they `POST /v1/invitations/{token}/accept` (or `/decline`). Either",
+        "party revokes with `DELETE /v1/dependents/links/{id}`. Check whether an email already has",
+        "an account with `GET /v1/users/search` before inviting.",
+      ].join("\n"),
+    },
+    tags: [
+      { name: "Account", description: "Identity and roles for the signed-in user." },
+      {
+        name: "Profile",
+        description:
+          "The shared base profile (name, phone, DOB, avatar) that every role reads from, plus notification preferences.",
+      },
+      {
+        name: "Patients",
+        description:
+          "Patient profile (identity + emergency contact) and the self-serve patient-role grant.",
+      },
+      {
+        name: "Practitioners",
+        description:
+          "Doctor/nurse registration, credential upload & submission, editable public profile, and the public bookable view.",
+      },
+      {
+        name: "Admin",
+        description:
+          "Verification review queue. Scope-gated: requires an admin with super_admin or verification_reviewer scope.",
+      },
+      {
+        name: "Dependents",
+        description:
+          "Care recipients — both managed dependents (no login) and the invitation flow for linking existing account-holders.",
+      },
+    ],
   });
   app.get("/docs", Scalar({ url: "/openapi.json" }));
 

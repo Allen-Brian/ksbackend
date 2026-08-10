@@ -33,12 +33,28 @@ const invite = createRoute({
   path: "/v1/dependents/invitations",
   tags: ["Dependents"],
   summary: "Invite an account-holder to be linked as a dependent",
+  description: [
+    "Link an EXISTING account-holder (not a managed dependent) as your dependent. Creates a",
+    "`pending` caregiver link and emails an invitation token to `inviteeEmail`; the invitee",
+    "activates it via `POST /v1/invitations/{token}/accept`. The token is NEVER returned here —",
+    "only emailed. You cannot invite yourself (`422`), and a duplicate pending invite to the same",
+    "person is rejected (`409`). To add someone who has no account, use `POST /v1/dependents`.",
+  ].join(" "),
   request: { body: jsonBody(InviteBody) },
   responses: {
-    201: { ...jsonBody(LinkResponse), description: "Invitation sent (pending)" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    409: { ...jsonBody(ErrorResponse), description: "Already invited / cannot link self" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    201: {
+      ...jsonBody(LinkResponse),
+      description: "The pending caregiver link (`status: pending`, `direction: sent`).",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    409: {
+      ...jsonBody(ErrorResponse),
+      description: "A pending invite to this person already exists.",
+    },
+    422: {
+      ...jsonBody(ErrorResponse),
+      description: "Validation failed, or you tried to invite yourself.",
+    },
   },
 });
 
@@ -47,11 +63,17 @@ const listMine = createRoute({
   path: "/v1/me/invitations",
   tags: ["Dependents"],
   summary: "Caregiver links sent by / addressed to the current user",
+  description: [
+    "Cursor-paginated list of every caregiver link the user is a party to — both invites they",
+    "SENT (`direction: sent`) and invites addressed to them (`direction: received`), including",
+    "pending invites matched by their email. Use it to render the invitee's inbox and the",
+    "caregiver's outbox. Tokens are never included; accept/decline via the link emailed to you.",
+  ].join(" "),
   request: { query: CursorQuery },
   responses: {
-    200: { ...jsonBody(LinksPage), description: "A page of caregiver links" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Invalid cursor" },
+    200: { ...jsonBody(LinksPage), description: "A page of caregiver links involving the user." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: { ...jsonBody(ErrorResponse), description: "The pagination cursor was malformed." },
   },
 });
 
@@ -60,13 +82,25 @@ const accept = createRoute({
   path: "/v1/invitations/{token}/accept",
   tags: ["Dependents"],
   summary: "Accept a caregiver invitation (activates the link)",
+  description: [
+    "Consume the token from an invitation email to activate the link, becoming the caregiver's",
+    "dependent (the `subject`). The signed-in user's email must match the address the invite was",
+    "sent to, otherwise `403`. Terminal states can't be re-accepted: an expired or already-answered",
+    "invite returns `409`, and an unknown token `404`.",
+  ].join(" "),
   request: { params: TokenParam },
   responses: {
-    200: { ...jsonBody(LinkResponse), description: "Accepted (active)" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    403: { ...jsonBody(ErrorResponse), description: "Addressed to another user" },
-    404: { ...jsonBody(ErrorResponse), description: "No such invitation" },
-    409: { ...jsonBody(ErrorResponse), description: "Expired / already responded" },
+    200: { ...jsonBody(LinkResponse), description: "The now-active link (`status: active`)." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    403: {
+      ...jsonBody(ErrorResponse),
+      description: "This invite was addressed to a different user.",
+    },
+    404: { ...jsonBody(ErrorResponse), description: "No invitation matches this token." },
+    409: {
+      ...jsonBody(ErrorResponse),
+      description: "The invite has expired or was already accepted/declined.",
+    },
   },
 });
 
@@ -75,13 +109,25 @@ const decline = createRoute({
   path: "/v1/invitations/{token}/decline",
   tags: ["Dependents"],
   summary: "Decline a caregiver invitation",
+  description: [
+    "Reject an invitation you received. This is terminal — the link moves to `declined` and cannot",
+    "later be accepted. Same guards as accept: the signed-in user's email must match the invited",
+    "address (`403`), the token must be known (`404`), and an expired or already-answered invite",
+    "returns `409`.",
+  ].join(" "),
   request: { params: TokenParam },
   responses: {
-    204: { description: "Declined" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    403: { ...jsonBody(ErrorResponse), description: "Addressed to another user" },
-    404: { ...jsonBody(ErrorResponse), description: "No such invitation" },
-    409: { ...jsonBody(ErrorResponse), description: "Expired / already responded" },
+    204: { description: "The invitation was declined (no body)." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    403: {
+      ...jsonBody(ErrorResponse),
+      description: "This invite was addressed to a different user.",
+    },
+    404: { ...jsonBody(ErrorResponse), description: "No invitation matches this token." },
+    409: {
+      ...jsonBody(ErrorResponse),
+      description: "The invite has expired or was already accepted/declined.",
+    },
   },
 });
 
@@ -90,11 +136,20 @@ const unlink = createRoute({
   path: "/v1/dependents/links/{id}",
   tags: ["Dependents"],
   summary: "Revoke a caregiver link (either party)",
+  description: [
+    "Tear down a caregiver link by its id. EITHER party may revoke — the caregiver or the linked",
+    "dependent — and it applies whether the link is still `pending` or already `active`. If the",
+    "caller is not a party to the link they get `404` (never `403`), so links they aren't part of",
+    "stay invisible.",
+  ].join(" "),
   request: { params: LinkIdParam },
   responses: {
-    204: { description: "Revoked" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    404: { ...jsonBody(ErrorResponse), description: "No such link" },
+    204: { description: "The link was revoked (no body)." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: {
+      ...jsonBody(ErrorResponse),
+      description: "No such link, or the caller is not a party to it.",
+    },
   },
 });
 
@@ -103,11 +158,24 @@ const search = createRoute({
   path: "/v1/users/search",
   tags: ["Dependents"],
   summary: "Whether an account exists for an exact email (for linking)",
+  description: [
+    "Existence check for the invite UI: given an EXACT email, tells you only whether an account",
+    "exists so the client can decide between inviting an account-holder and creating a managed",
+    "dependent. Deliberately returns nothing but `{ exists }` — no name or id — to avoid user",
+    "enumeration and PII leakage; identities become mutually visible only after an invite is",
+    "accepted.",
+  ].join(" "),
   request: { query: UserSearchQuery },
   responses: {
-    200: { ...jsonBody(UserSearchResponse), description: "Whether the account exists" },
-    401: { ...jsonBody(ErrorResponse), description: "Not authenticated" },
-    422: { ...jsonBody(ErrorResponse), description: "Validation failed" },
+    200: {
+      ...jsonBody(UserSearchResponse),
+      description: "Whether an account exists for that exact email.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    422: {
+      ...jsonBody(ErrorResponse),
+      description: "The email query parameter was missing or malformed.",
+    },
   },
 });
 
