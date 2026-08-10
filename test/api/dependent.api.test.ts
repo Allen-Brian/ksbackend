@@ -60,6 +60,19 @@ describe("dependents API (real DB)", () => {
     expect(afterDelete.status).toBe(404);
   });
 
+  it("an empty PATCH body is a no-op that returns the current row (not a 500)", async () => {
+    const created = await harness.post("/v1/dependents", newDependent, ownerCookie);
+    const { id } = await json<{ id: string }>(created);
+
+    const noop = await harness.app.request(`/v1/dependents/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: ownerCookie },
+      body: JSON.stringify({}),
+    });
+    expect(noop.status).toBe(200);
+    expect((await json<{ givenNames: string }>(noop)).givenNames).toBe("Petit");
+  });
+
   it("a different account holder cannot see another's dependent", async () => {
     const created = await harness.post("/v1/dependents", newDependent, ownerCookie);
     const { id } = await json<{ id: string }>(created);

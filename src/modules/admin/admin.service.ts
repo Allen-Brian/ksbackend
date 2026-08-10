@@ -1,4 +1,4 @@
-import { SqlError } from "@effect/sql";
+import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
 import type { Practitioner } from "@/domain/practitioner/practitioner";
 import {
@@ -60,7 +60,7 @@ export interface AdminServiceService {
     id: string,
   ) => Effect.Effect<
     Practitioner,
-    Forbidden | NotFound | VerificationStateInvalid | EmailError | SqlError.SqlError,
+    Forbidden | NotFound | VerificationStateInvalid | SqlError.SqlError,
     CurrentUser
   >;
   readonly reject: (
@@ -68,7 +68,7 @@ export interface AdminServiceService {
     reason: string,
   ) => Effect.Effect<
     Practitioner,
-    Forbidden | NotFound | VerificationStateInvalid | EmailError | SqlError.SqlError,
+    Forbidden | NotFound | VerificationStateInvalid | SqlError.SqlError,
     CurrentUser
   >;
 }
@@ -86,6 +86,7 @@ export const AdminServiceLive = Layer.effect(
     const storage = yield* FileStorage;
     const email = yield* EmailSender;
     const ids = yield* IdGenerator;
+    const sql = yield* SqlClient.SqlClient;
 
     const presignMaybe = (key: string | null) =>
       key === null ? Effect.succeed(null) : storage.presignDownload(key);
@@ -125,19 +126,30 @@ export const AdminServiceLive = Layer.effect(
           );
         }
         const now = new Date(yield* Clock.currentTimeMillis);
-        yield* repo.setStatus(id, decision === "approved" ? "verified" : "rejected", now);
-        yield* repo.addReview({
-          id: yield* ids.next,
-          practitionerProfileId: id,
-          reviewerUserId: reviewer.id,
-          decision,
-          reason,
-        });
+        const reviewId = yield* ids.next;
+        // Status change + audit row are one atomic unit: a profile must never
+        // flip to verified/rejected without its verification_review record.
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* repo.setStatus(id, decision === "approved" ? "verified" : "rejected", now);
+            yield* repo.addReview({
+              id: reviewId,
+              practitionerProfileId: id,
+              reviewerUserId: reviewer.id,
+              decision,
+              reason,
+            });
+          }),
+        );
+        // Notification is a post-commit, best-effort side effect: a mail hiccup
+        // must not fail (and prompt a retry of) an approval that's already durable.
         yield* notify(
           id,
           decision === "approved"
             ? { kind: "verification-approved" }
             : { kind: "verification-rejected", reason: reason ?? "" },
+        ).pipe(
+          Effect.catchAll((cause) => Effect.logWarning("verification notification failed", cause)),
         );
         return {
           ...found,
@@ -189,11 +201,14 @@ export const AdminServiceLive = Layer.effect(
             found.nicNumberEncrypted === null
               ? ""
               : yield* crypto.decrypt(found.nicNumberEncrypted);
-          const [cmcCertificateUrl, nicUrl, profilePhotoUrl] = yield* Effect.all([
-            presignMaybe(found.practitioner.cmcCertificateFileKey),
-            presignMaybe(found.practitioner.nicFileKey),
-            presignMaybe(found.practitioner.profilePhotoFileKey),
-          ]);
+          const [cmcCertificateUrl, nicUrl, profilePhotoUrl] = yield* Effect.all(
+            [
+              presignMaybe(found.practitioner.cmcCertificateFileKey),
+              presignMaybe(found.practitioner.nicFileKey),
+              presignMaybe(found.practitioner.profilePhotoFileKey),
+            ],
+            { concurrency: "unbounded" },
+          );
           return {
             practitioner: found.practitioner,
             cmcRegistrationNumber,
