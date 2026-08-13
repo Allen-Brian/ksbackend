@@ -8,11 +8,18 @@ import { LoggerLive } from "./infra/logger";
 import { RateLimiterInMemoryLive } from "./infra/rate-limiter";
 import { FileScanner, FileScannerCleanLive, FileScannerS3Live } from "./infra/scanner";
 import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/storage";
+import { AdminRepoLive } from "./modules/admin/admin.repo";
 import { AdminServiceLive } from "./modules/admin/admin.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
+import { InvitationRepoLive } from "./modules/invitation/invitation.repo";
+import { InvitationServiceLive } from "./modules/invitation/invitation.service";
+import { NotificationRepoLive } from "./modules/notification/notification.repo";
+import { NotificationServiceLive } from "./modules/notification/notification.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
+import { ProfileRepoLive } from "./modules/profile/profile.repo";
+import { ProfileServiceLive } from "./modules/profile/profile.service";
 import { PractitionerRepoLive } from "./modules/practitioner/practitioner.repo";
 import { PractitionerServiceLive } from "./modules/practitioner/practitioner.service";
 
@@ -42,31 +49,65 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const idGen = IdGeneratorLive;
   const crypto = CryptoLive;
 
+  const profileRepo = ProfileRepoLive.pipe(Layer.provide(database));
   const patientRepo = PatientRepoLive.pipe(Layer.provide(database));
   const practitionerRepo = PractitionerRepoLive.pipe(Layer.provide(database));
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
+  const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
+  const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
+  const invitationRepo = InvitationRepoLive.pipe(Layer.provide(database));
 
-  const patient = PatientServiceLive.pipe(Layer.provide(Layer.mergeAll(patientRepo, idGen)));
+  const profile = ProfileServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
+  );
+  const notification = NotificationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(notificationRepo, idGen)),
+  );
   // `database` is also given to services that run multi-write transactions
   // (SqlClient.withTransaction) — the repos + service then share one SqlClient.
+  const patient = PatientServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(patientRepo, profileRepo, idGen, database)),
+  );
   const practitioner = PractitionerServiceLive.pipe(
     Layer.provide(
-      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.scanner, infra.storage, database),
+      Layer.mergeAll(
+        practitionerRepo,
+        profileRepo,
+        idGen,
+        crypto,
+        infra.scanner,
+        infra.storage,
+        database,
+      ),
     ),
   );
   const admin = AdminServiceLive.pipe(
     Layer.provide(
-      Layer.mergeAll(practitionerRepo, idGen, crypto, infra.storage, infra.email, database),
+      Layer.mergeAll(
+        practitionerRepo,
+        adminRepo,
+        idGen,
+        crypto,
+        infra.storage,
+        infra.email,
+        database,
+      ),
     ),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
+  const invitation = InvitationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(invitationRepo, idGen, infra.email, database)),
+  );
   const health = HealthLive.pipe(Layer.provide(database));
 
   return Layer.mergeAll(
+    profile,
+    notification,
     patient,
     practitioner,
     admin,
     dependent,
+    invitation,
     health,
     RateLimiterInMemoryLive,
     LoggerLive,

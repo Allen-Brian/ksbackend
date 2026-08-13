@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { user } from "@/db/schema/auth";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
@@ -58,10 +56,7 @@ describe("verification state guards (real DB)", () => {
       "password12345",
       "Ad Min",
     );
-    await harness.db
-      .update(user)
-      .set({ role: "admin" })
-      .where(eq(user.email, "guard-admin@example.com"));
+    await harness.promoteToAdmin("guard-admin@example.com");
   });
 
   afterAll(() => harness.dispose());

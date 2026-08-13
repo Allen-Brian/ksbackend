@@ -1,19 +1,21 @@
-export type Sex = "male" | "female";
+import type { Profile, Sex } from "@/domain/profile/profile";
 
-/** A patient's profile (distinct from the account/`user`). */
-export type Patient = {
-  readonly id: string;
-  readonly userId: string;
-  readonly surname: string;
-  readonly givenNames: string;
-  readonly phone: string | null;
-  readonly dateOfBirth: string;
-  readonly sex: Sex;
-  readonly consentAcceptedAt: Date;
-  readonly consentVersion: string;
+/** Who to contact in an emergency for a patient. */
+export type EmergencyContact = {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
 };
 
-/** Fields a patient submits to complete their profile. */
+/**
+ * A patient: the base `Profile` plus patient-specific data (emergency contact).
+ * Identity/contact/consent live on the base profile.
+ */
+export type Patient = Profile & {
+  readonly emergencyContact: EmergencyContact | null;
+};
+
+/** Fields a patient submits to complete their profile (base + patient-specific). */
 export type PatientProfileInput = {
   readonly surname: string;
   readonly givenNames: string;
@@ -21,4 +23,5 @@ export type PatientProfileInput = {
   readonly dateOfBirth: string;
   readonly sex: Sex;
   readonly consentVersion: string;
+  readonly emergencyContact?: EmergencyContact | undefined;
 };

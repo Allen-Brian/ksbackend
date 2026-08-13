@@ -1,9 +1,71 @@
 {
-  "id": "b042f38b-404a-41c9-9002-ed556fa0bcfd",
+  "id": "a655642e-42aa-47e5-b56a-aff7aa3c6a2a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.admin_profile": {
+      "name": "admin_profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "admin_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "admin_profile_user_id_user_id_fk": {
+          "name": "admin_profile_user_id_user_id_fk",
+          "tableFrom": "admin_profile",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "admin_profile_user_id_unique": {
+          "name": "admin_profile_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.account": {
       "name": "account",
       "schema": "",
@@ -361,8 +423,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.dependent": {
-      "name": "dependent",
+    "public.caregiver_link": {
+      "name": "caregiver_link",
       "schema": "",
       "columns": {
         "id": {
@@ -371,10 +433,203 @@
           "primaryKey": true,
           "notNull": true
         },
-        "account_holder_user_id": {
-          "name": "account_holder_user_id",
+        "caregiver_user_id": {
+          "name": "caregiver_user_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "managed_dependent_id": {
+          "name": "managed_dependent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_user_id": {
+          "name": "subject_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relationship": {
+          "name": "relationship",
+          "type": "relationship",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "caregiver_link_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invite_identifier": {
+          "name": "invite_identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invite_token": {
+          "name": "invite_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invited_at": {
+          "name": "invited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "caregiver_link_caregiver_user_id_user_id_fk": {
+          "name": "caregiver_link_caregiver_user_id_user_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "user",
+          "columnsFrom": ["caregiver_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "caregiver_link_managed_dependent_id_dependent_id_fk": {
+          "name": "caregiver_link_managed_dependent_id_dependent_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "dependent",
+          "columnsFrom": ["managed_dependent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "caregiver_link_subject_user_id_user_id_fk": {
+          "name": "caregiver_link_subject_user_id_user_id_fk",
+          "tableFrom": "caregiver_link",
+          "tableTo": "user",
+          "columnsFrom": ["subject_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "caregiver_link_invite_token_unique": {
+          "name": "caregiver_link_invite_token_unique",
+          "nullsNotDistinct": false,
+          "columns": ["invite_token"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.consent_audit": {
+      "name": "consent_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event": {
+          "name": "event",
+          "type": "consent_event",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meta": {
+          "name": "meta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "consent_audit_link_id_caregiver_link_id_fk": {
+          "name": "consent_audit_link_id_caregiver_link_id_fk",
+          "tableFrom": "consent_audit",
+          "tableTo": "caregiver_link",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "consent_audit_actor_user_id_user_id_fk": {
+          "name": "consent_audit_actor_user_id_user_id_fk",
+          "tableFrom": "consent_audit",
+          "tableTo": "user",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dependent": {
+      "name": "dependent",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
           "notNull": true
         },
         "surname": {
@@ -398,13 +653,6 @@
         "sex": {
           "name": "sex",
           "type": "sex",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "relationship": {
-          "name": "relationship",
-          "type": "relationship",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -443,19 +691,89 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notification_preference": {
+      "name": "notification_preference",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "notification_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sms": {
+          "name": "sms",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "push": {
+          "name": "push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
       "foreignKeys": {
-        "dependent_account_holder_user_id_user_id_fk": {
-          "name": "dependent_account_holder_user_id_user_id_fk",
-          "tableFrom": "dependent",
+        "notification_preference_user_id_user_id_fk": {
+          "name": "notification_preference_user_id_user_id_fk",
+          "tableFrom": "notification_preference",
           "tableTo": "user",
-          "columnsFrom": ["account_holder_user_id"],
+          "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "notification_preference_user_id_category_unique": {
+          "name": "notification_preference_user_id_category_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id", "category"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -476,48 +794,23 @@
           "primaryKey": false,
           "notNull": true
         },
-        "surname": {
-          "name": "surname",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "given_names": {
-          "name": "given_names",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phone": {
-          "name": "phone",
+        "emergency_contact_name": {
+          "name": "emergency_contact_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "date_of_birth": {
-          "name": "date_of_birth",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sex": {
-          "name": "sex",
-          "type": "sex",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_accepted_at": {
-          "name": "consent_accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_version": {
-          "name": "consent_version",
+        "emergency_contact_phone": {
+          "name": "emergency_contact_phone",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "emergency_contact_relationship": {
+          "name": "emergency_contact_relationship",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -586,40 +879,39 @@
           "primaryKey": false,
           "notNull": false
         },
-        "surname": {
-          "name": "surname",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "given_names": {
-          "name": "given_names",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "date_of_birth": {
-          "name": "date_of_birth",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sex": {
-          "name": "sex",
-          "type": "sex",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
         "location": {
           "name": "location",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "specialty": {
+          "name": "specialty",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "languages_spoken": {
+          "name": "languages_spoken",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "years_experience": {
+          "name": "years_experience",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consultation_fee_xaf": {
+          "name": "consultation_fee_xaf",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -673,18 +965,6 @@
           "notNull": true,
           "default": "'incomplete'"
         },
-        "consent_accepted_at": {
-          "name": "consent_accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_version": {
-          "name": "consent_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -737,6 +1017,110 @@
           "name": "practitioner_profile_nic_number_hmac_unique",
           "nullsNotDistinct": false,
           "columns": ["nic_number_hmac"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.profile": {
+      "name": "profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "surname": {
+          "name": "surname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "given_names": {
+          "name": "given_names",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sex": {
+          "name": "sex",
+          "type": "sex",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_file_key": {
+          "name": "avatar_file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consent_accepted_at": {
+          "name": "consent_accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_version": {
+          "name": "consent_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profile_user_id_user_id_fk": {
+          "name": "profile_user_id_user_id_fk",
+          "tableFrom": "profile",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "profile_user_id_unique": {
+          "name": "profile_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
         }
       },
       "policies": {},
@@ -859,6 +1243,26 @@
     }
   },
   "enums": {
+    "public.admin_scope": {
+      "name": "admin_scope",
+      "schema": "public",
+      "values": ["super_admin", "verification_reviewer"]
+    },
+    "public.caregiver_link_status": {
+      "name": "caregiver_link_status",
+      "schema": "public",
+      "values": ["pending", "active", "revoked", "declined"]
+    },
+    "public.consent_event": {
+      "name": "consent_event",
+      "schema": "public",
+      "values": ["invited", "accepted", "declined", "revoked", "upgraded"]
+    },
+    "public.notification_category": {
+      "name": "notification_category",
+      "schema": "public",
+      "values": ["appointments", "verification", "security", "account"]
+    },
     "public.relationship": {
       "name": "relationship",
       "schema": "public",

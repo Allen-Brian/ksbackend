@@ -4,29 +4,42 @@ import { and, desc, eq, lt, ne, or } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { user } from "@/db/schema/auth";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
+import { profile } from "@/db/schema/profile";
 import { verificationReview } from "@/db/schema/verification-review";
-import type { Locale } from "@/infra/i18n";
-import type { Practitioner, VerificationStatus } from "@/domain/practitioner/practitioner";
+import type {
+  Practitioner,
+  PublicProfilePatch,
+  VerificationStatus,
+} from "@/domain/practitioner/practitioner";
 import { parseRoles, type Role, serializeRoles } from "@/infra/auth";
+import type { Locale } from "@/infra/i18n";
 
 type Row = typeof practitionerProfile.$inferSelect;
 type Insert = typeof practitionerProfile.$inferInsert;
+type ProfileRow = typeof profile.$inferSelect;
 
-const toDomain = (row: Row): Practitioner => ({
-  id: row.id,
-  userId: row.userId,
-  professionId: row.professionId,
-  prefix: row.prefix,
-  surname: row.surname,
-  givenNames: row.givenNames,
-  phone: row.phone,
-  dateOfBirth: row.dateOfBirth,
-  sex: row.sex,
-  location: row.location,
-  cmcCertificateFileKey: row.cmcCertificateFileKey,
-  nicFileKey: row.nicFileKey,
-  profilePhotoFileKey: row.profilePhotoFileKey,
-  verificationStatus: row.verificationStatus,
+// Identity/contact come from the base profile; the professional fields + verification
+// state from practitioner_profile. Every read joins the two.
+const toDomain = (p: Row, base: ProfileRow): Practitioner => ({
+  id: p.id,
+  userId: p.userId,
+  professionId: p.professionId,
+  prefix: p.prefix,
+  surname: base.surname,
+  givenNames: base.givenNames,
+  phone: base.phone,
+  dateOfBirth: base.dateOfBirth,
+  sex: base.sex,
+  location: p.location,
+  specialty: p.specialty,
+  bio: p.bio,
+  languagesSpoken: p.languagesSpoken,
+  yearsExperience: p.yearsExperience,
+  consultationFeeXaf: p.consultationFeeXaf,
+  cmcCertificateFileKey: p.cmcCertificateFileKey,
+  nicFileKey: p.nicFileKey,
+  profilePhotoFileKey: p.profilePhotoFileKey,
+  verificationStatus: p.verificationStatus,
 });
 
 export type PractitionerWithSecrets = {
@@ -51,7 +64,8 @@ export interface PractitionerRepoService {
   readonly findByUserId: (
     userId: string,
   ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
-  readonly create: (values: Insert) => Effect.Effect<Practitioner, SqlError.SqlError>;
+  /** Insert the professional row (base profile is written separately by the service). */
+  readonly create: (values: Insert) => Effect.Effect<void, SqlError.SqlError>;
   readonly grantRole: (userId: string, role: Role) => Effect.Effect<void, SqlError.SqlError>;
   readonly hasConflictingHmac: (
     userId: string,
@@ -61,6 +75,11 @@ export interface PractitionerRepoService {
   readonly applyCredentials: (
     userId: string,
     patch: CredentialPatch,
+  ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
+  readonly updatePublic: (
+    userId: string,
+    patch: PublicProfilePatch,
+    updatedAt: Date,
   ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
   readonly findByIdWithSecrets: (
@@ -101,27 +120,24 @@ export const PractitionerRepoLive = Layer.effect(
   Effect.gen(function* () {
     const db = yield* PgDrizzle.PgDrizzle;
 
+    const joined = () =>
+      db
+        .select({ practitioner: practitionerProfile, base: profile })
+        .from(practitionerProfile)
+        .innerJoin(profile, eq(practitionerProfile.userId, profile.userId));
+
     return {
       findByUserId: (userId) =>
-        db
-          .select()
-          .from(practitionerProfile)
+        joined()
           .where(eq(practitionerProfile.userId, userId))
           .limit(1)
-          .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
-
-      create: (values) =>
-        db
-          .insert(practitionerProfile)
-          .values(values)
-          .returning()
           .pipe(
-            Effect.flatMap((rows) =>
-              rows[0]
-                ? Effect.succeed(toDomain(rows[0]))
-                : Effect.dieMessage("insert returned no row"),
+            Effect.map((rows) =>
+              rows[0] ? toDomain(rows[0].practitioner, rows[0].base) : undefined,
             ),
           ),
+
+      create: (values) => db.insert(practitionerProfile).values(values).pipe(Effect.asVoid),
 
       grantRole: (userId, role) =>
         db
@@ -158,21 +174,62 @@ export const PractitionerRepoLive = Layer.effect(
           .update(practitionerProfile)
           .set(patch)
           .where(eq(practitionerProfile.userId, userId))
-          .returning()
-          .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
+          .pipe(
+            Effect.flatMap(() =>
+              joined()
+                .where(eq(practitionerProfile.userId, userId))
+                .limit(1)
+                .pipe(
+                  Effect.map((rows) =>
+                    rows[0] ? toDomain(rows[0].practitioner, rows[0].base) : undefined,
+                  ),
+                ),
+            ),
+          ),
+
+      updatePublic: (userId, patch, updatedAt) =>
+        db
+          .update(practitionerProfile)
+          .set({
+            ...(patch.prefix !== undefined && { prefix: patch.prefix }),
+            ...(patch.location !== undefined && { location: patch.location }),
+            ...(patch.specialty !== undefined && { specialty: patch.specialty }),
+            ...(patch.bio !== undefined && { bio: patch.bio }),
+            ...(patch.languagesSpoken !== undefined && {
+              languagesSpoken: [...patch.languagesSpoken],
+            }),
+            ...(patch.yearsExperience !== undefined && { yearsExperience: patch.yearsExperience }),
+            ...(patch.consultationFeeXaf !== undefined && {
+              consultationFeeXaf: patch.consultationFeeXaf,
+            }),
+            updatedAt,
+          })
+          .where(eq(practitionerProfile.userId, userId))
+          .pipe(
+            Effect.flatMap(() =>
+              joined()
+                .where(eq(practitionerProfile.userId, userId))
+                .limit(1)
+                .pipe(
+                  Effect.map((rows) =>
+                    rows[0] ? toDomain(rows[0].practitioner, rows[0].base) : undefined,
+                  ),
+                ),
+            ),
+          ),
 
       findById: (id) =>
-        db
-          .select()
-          .from(practitionerProfile)
+        joined()
           .where(eq(practitionerProfile.id, id))
           .limit(1)
-          .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
+          .pipe(
+            Effect.map((rows) =>
+              rows[0] ? toDomain(rows[0].practitioner, rows[0].base) : undefined,
+            ),
+          ),
 
       findByIdWithSecrets: (id) =>
-        db
-          .select()
-          .from(practitionerProfile)
+        joined()
           .where(eq(practitionerProfile.id, id))
           .limit(1)
           .pipe(
@@ -181,17 +238,15 @@ export const PractitionerRepoLive = Layer.effect(
               return row === undefined
                 ? undefined
                 : {
-                    practitioner: toDomain(row),
-                    cmcNumberEncrypted: row.cmcNumberEncrypted,
-                    nicNumberEncrypted: row.nicNumberEncrypted,
+                    practitioner: toDomain(row.practitioner, row.base),
+                    cmcNumberEncrypted: row.practitioner.cmcNumberEncrypted,
+                    nicNumberEncrypted: row.practitioner.nicNumberEncrypted,
                   };
             }),
           ),
 
       listByStatus: (status, limit, beforeId) =>
-        db
-          .select()
-          .from(practitionerProfile)
+        joined()
           .where(
             beforeId === undefined
               ? eq(practitionerProfile.verificationStatus, status)
@@ -202,7 +257,7 @@ export const PractitionerRepoLive = Layer.effect(
           )
           .orderBy(desc(practitionerProfile.id))
           .limit(limit)
-          .pipe(Effect.map((rows) => rows.map(toDomain))),
+          .pipe(Effect.map((rows) => rows.map((r) => toDomain(r.practitioner, r.base)))),
 
       setStatus: (id, status, updatedAt) =>
         db

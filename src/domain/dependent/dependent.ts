@@ -1,10 +1,13 @@
 export type Sex = "male" | "female";
 export type Relationship = "child" | "parent" | "spouse" | "sibling" | "other";
 
-/** A dependent person (no login) an account holder books care for. */
+/**
+ * A dependent person (no login) as seen BY a caregiver — `relationship` is that
+ * caregiver's relationship to them (it lives on the caregiver_link, not the
+ * person, since a dependent may have several caregivers).
+ */
 export type Dependent = {
   readonly id: string;
-  readonly accountHolderUserId: string;
   readonly surname: string;
   readonly givenNames: string;
   readonly dateOfBirth: string;

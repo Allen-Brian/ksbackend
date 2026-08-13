@@ -18,3 +18,27 @@ export const relationshipEnum = pgEnum("relationship", [
   "sibling",
   "other",
 ]);
+
+export const notificationCategoryEnum = pgEnum("notification_category", [
+  "appointments",
+  "verification",
+  "security",
+  "account",
+]);
+
+export const adminScopeEnum = pgEnum("admin_scope", ["super_admin", "verification_reviewer"]);
+
+export const caregiverLinkStatusEnum = pgEnum("caregiver_link_status", [
+  "pending",
+  "active",
+  "revoked",
+  "declined",
+]);
+
+export const consentEventEnum = pgEnum("consent_event", [
+  "invited",
+  "accepted",
+  "declined",
+  "revoked",
+  "upgraded",
+]);

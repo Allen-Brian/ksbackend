@@ -33,5 +33,8 @@
   "emails.verificationApproved.body": "Bonne nouvelle — votre compte praticien a été vérifié. Vous êtes désormais visible par les patients sur KanaSanté.",
   "emails.verificationRejected.subject": "Action requise sur votre compte KanaSanté",
   "emails.verificationRejected.heading": "La vérification n'a pas pu être complétée",
-  "emails.verificationRejected.body": "Nous n'avons pas pu compléter votre vérification. Motif : {reason}. Veuillez corriger vos informations et soumettre à nouveau."
+  "emails.verificationRejected.body": "Nous n'avons pas pu compléter votre vérification. Motif : {reason}. Veuillez corriger vos informations et soumettre à nouveau.",
+  "emails.caregiverInvitation.subject": "Vous avez été invité sur KanaSanté",
+  "emails.caregiverInvitation.heading": "Une invitation d'aidant",
+  "emails.caregiverInvitation.body": "Quelqu'un vous a invité à être rattaché comme sa personne à charge sur KanaSanté afin de l'aider à gérer vos soins. Utilisez ce code pour accepter : {token}"
 }

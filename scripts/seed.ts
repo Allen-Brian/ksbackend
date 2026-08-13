@@ -5,6 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { adminProfile } from "../src/db/schema/admin-profile";
 import { user } from "../src/db/schema/auth";
 import { profession } from "../src/db/schema/profession";
 import { makeAuth } from "../src/infra/auth";
@@ -78,6 +79,14 @@ const seedAdmin = async (): Promise<void> => {
   });
   await auth.instance.api.signUpEmail({ body: { email, password, name: "KanaSanté Admin" } });
   await db.update(user).set({ role: "admin", emailVerified: true }).where(eq(user.email, email));
+  const admin = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
+  const adminId = admin[0]?.id;
+  if (adminId !== undefined) {
+    await db
+      .insert(adminProfile)
+      .values({ id: crypto.randomUUID(), userId: adminId, scope: "super_admin" })
+      .onConflictDoNothing({ target: adminProfile.userId });
+  }
   await auth.close();
   console.log(`✓ seeded admin ${email}`);
 };

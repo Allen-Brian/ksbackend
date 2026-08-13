@@ -1,4 +1,8 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { user } from "@/db/schema/auth";
+import { caregiverLink } from "@/db/schema/caregiver-link";
+import { dependent } from "@/db/schema/dependent";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
@@ -90,5 +94,102 @@ describe("dependents API (real DB)", () => {
 
   it("rejects an unauthenticated request with 401", async () => {
     expect((await harness.app.request("/v1/dependents")).status).toBe(401);
+  });
+
+  it("supports multiple caregivers; soft-deletes only when the last one unlinks", async () => {
+    const created = await harness.post("/v1/dependents", newDependent, ownerCookie);
+    const { id } = await json<{ id: string }>(created);
+
+    // A second caregiver, linked directly (the invitation flow arrives in slice 7).
+    const cookieB = await harness.signUpAndVerify(
+      "co-caregiver@example.com",
+      "password12345",
+      "Co Giver",
+    );
+    const rowsB = await harness.db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, "co-caregiver@example.com"));
+    await harness.db.insert(caregiverLink).values({
+      id: crypto.randomUUID(),
+      caregiverUserId: rowsB[0]?.id ?? "",
+      managedDependentId: id,
+      relationship: "parent",
+      status: "active",
+    });
+
+    const seesIt = () =>
+      harness.app.request(`/v1/dependents/${id}`, { headers: { cookie: cookieB } });
+    expect((await seesIt()).status).toBe(200);
+
+    // Owner A unlinks — dependent survives because B is still linked.
+    expect(
+      (
+        await harness.app.request(`/v1/dependents/${id}`, {
+          method: "DELETE",
+          headers: { cookie: ownerCookie },
+        })
+      ).status,
+    ).toBe(204);
+    expect((await seesIt()).status).toBe(200);
+
+    // B unlinks — now the last caregiver is gone, so it's soft-deleted.
+    expect(
+      (
+        await harness.app.request(`/v1/dependents/${id}`, {
+          method: "DELETE",
+          headers: { cookie: cookieB },
+        })
+      ).status,
+    ).toBe(204);
+    expect((await seesIt()).status).toBe(404);
+  });
+
+  it("deleting a caregiver's account removes solely-managed dependents but keeps shared ones", async () => {
+    const password = "password12345";
+    const leaving = await harness.signUpAndVerify("leaving@example.com", password, "Lea Ving");
+
+    const sole = await json<{ id: string }>(
+      await harness.post("/v1/dependents", newDependent, leaving),
+    );
+    const shared = await json<{ id: string }>(
+      await harness.post("/v1/dependents", newDependent, leaving),
+    );
+
+    // A co-caregiver links to the shared dependent so it should outlive the delete.
+    const keeper = await harness.signUpAndVerify("keeper@example.com", password, "Kee Per");
+    const keeperId =
+      (
+        await harness.db
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.email, "keeper@example.com"))
+      )[0]?.id ?? "";
+    await harness.db.insert(caregiverLink).values({
+      id: crypto.randomUUID(),
+      caregiverUserId: keeperId,
+      managedDependentId: shared.id,
+      relationship: "parent",
+      status: "active",
+    });
+
+    const del = await harness.post("/api/auth/delete-user", { password }, leaving);
+    expect([200, 204]).toContain(del.status);
+
+    // Sole dependent is hard-deleted; the shared one survives and the keeper still sees it.
+    const soleRows = await harness.db
+      .select({ id: dependent.id })
+      .from(dependent)
+      .where(eq(dependent.id, sole.id));
+    expect(soleRows.length).toBe(0);
+    const sharedRows = await harness.db
+      .select({ id: dependent.id })
+      .from(dependent)
+      .where(eq(dependent.id, shared.id));
+    expect(sharedRows.length).toBe(1);
+    expect(
+      (await harness.app.request(`/v1/dependents/${shared.id}`, { headers: { cookie: keeper } }))
+        .status,
+    ).toBe(200);
   });
 });

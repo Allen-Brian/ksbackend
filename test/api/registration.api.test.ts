@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { user } from "@/db/schema/auth";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
@@ -37,16 +35,78 @@ describe("registration flows (real DB)", () => {
         sex: "male",
         consentVersion: "1.0",
         acceptTerms: true,
+        emergencyContact: { name: "Kin Folk", phone: "+237650000001", relationship: "sister" },
       },
       cookie,
     );
     expect(created.status).toBe(200);
-    expect((await json<{ surname: string }>(created)).surname).toBe("Ient");
+    const createdBody = await json<{ surname: string; emergencyContact: { name: string } | null }>(
+      created,
+    );
+    expect(createdBody.surname).toBe("Ient");
+    expect(createdBody.emergencyContact?.name).toBe("Kin Folk");
 
     expect(
       (await harness.app.request("/v1/patients/me/profile", { headers: { cookie } })).status,
     ).toBe(200);
     expect((await harness.app.request("/v1/patients/me/profile")).status).toBe(401);
+
+    // Self-granting the patient role again must NOT wipe the emergency contact.
+    expect(
+      (await harness.app.request("/v1/me/roles/patient", { method: "POST", headers: { cookie } }))
+        .status,
+    ).toBe(204);
+    const afterClaim = await json<{ emergencyContact: { name: string } | null }>(
+      await harness.app.request("/v1/patients/me/profile", { headers: { cookie } }),
+    );
+    expect(afterClaim.emergencyContact?.name).toBe("Kin Folk");
+  });
+
+  it("multi-role: registering as practitioner preserves base fields set as a patient", async () => {
+    const cookie = await harness.signUpAndVerify("both@example.com", "password12345", "Both Roles");
+    // As a patient: set phone + DOB on the base profile.
+    expect(
+      (
+        await harness.post(
+          "/v1/patients/me/profile",
+          {
+            surname: "Both",
+            givenNames: "Role",
+            phone: "+237650000009",
+            dateOfBirth: "1985-06-15",
+            sex: "female",
+            consentVersion: "1.0",
+            acceptTerms: true,
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+
+    // Later register as a practitioner WITHOUT re-supplying phone/DOB.
+    expect(
+      (
+        await harness.post(
+          "/v1/practitioners/register",
+          {
+            role: "doctor",
+            professionId: PROFESSION_ID,
+            surname: "Both",
+            givenNames: "Role",
+            consentVersion: "1.0",
+            acceptTerms: true,
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(201);
+
+    // The base profile must still carry the patient-set phone + DOB (not nulled).
+    const base = await json<{ phone: string | null; dateOfBirth: string | null }>(
+      await harness.app.request("/v1/me/profile", { headers: { cookie } }),
+    );
+    expect(base.phone).toBe("+237650000009");
+    expect(base.dateOfBirth).toBe("1985-06-15");
   });
 
   it("practitioner: register -> submit credentials -> admin approves", async () => {
@@ -90,7 +150,7 @@ describe("registration flows (real DB)", () => {
       "password12345",
       "Ad Min",
     );
-    await harness.db.update(user).set({ role: "admin" }).where(eq(user.email, "admin@example.com"));
+    await harness.promoteToAdmin("admin@example.com");
 
     const pending = await harness.app.request("/v1/admin/verifications?limit=10", {
       headers: { cookie: adminCookie },

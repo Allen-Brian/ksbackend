@@ -14,10 +14,26 @@ export type Practitioner = {
   readonly dateOfBirth: string | null;
   readonly sex: Sex | null;
   readonly location: string | null;
+  readonly specialty: string | null;
+  readonly bio: string | null;
+  readonly languagesSpoken: ReadonlyArray<string> | null;
+  readonly yearsExperience: number | null;
+  readonly consultationFeeXaf: number | null;
   readonly cmcCertificateFileKey: string | null;
   readonly nicFileKey: string | null;
   readonly profilePhotoFileKey: string | null;
   readonly verificationStatus: VerificationStatus;
+};
+
+/** Editable public-profile fields (PATCH /v1/practitioners/me). */
+export type PublicProfilePatch = {
+  readonly prefix?: string | undefined;
+  readonly location?: string | undefined;
+  readonly specialty?: string | undefined;
+  readonly bio?: string | undefined;
+  readonly languagesSpoken?: ReadonlyArray<string> | undefined;
+  readonly yearsExperience?: number | undefined;
+  readonly consultationFeeXaf?: number | undefined;
 };
 
 export type PractitionerRegistration = {

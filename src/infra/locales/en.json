@@ -33,5 +33,8 @@
   "emails.verificationApproved.body": "Good news — your practitioner account has been verified. You are now visible to patients on KanaSanté.",
   "emails.verificationRejected.subject": "Action needed on your KanaSanté account",
   "emails.verificationRejected.heading": "Verification could not be completed",
-  "emails.verificationRejected.body": "We couldn't complete your verification. Reason: {reason}. Please correct your details and resubmit."
+  "emails.verificationRejected.body": "We couldn't complete your verification. Reason: {reason}. Please correct your details and resubmit.",
+  "emails.caregiverInvitation.subject": "You've been invited on KanaSanté",
+  "emails.caregiverInvitation.heading": "A caregiver invitation",
+  "emails.caregiverInvitation.body": "Someone invited you to be linked as their dependent on KanaSanté so they can help manage your care. Use this code to accept: {token}"
 }

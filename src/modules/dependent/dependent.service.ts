@@ -54,82 +54,77 @@ export const DependentServiceLive = Layer.effect(
     const repo = yield* DependentRepo;
     const ids = yield* IdGenerator;
 
-    return {
-      create: (ownerId, input) =>
-        Effect.gen(function* () {
-          const id = yield* ids.next;
-          return yield* repo.create({
-            id,
-            accountHolderUserId: ownerId,
-            surname: input.surname,
-            givenNames: input.givenNames,
-            dateOfBirth: input.dateOfBirth,
-            sex: input.sex,
-            relationship: input.relationship,
-            phone: input.phone ?? null,
-            location: input.location ?? null,
-          });
-        }),
+    const create: DependentServiceService["create"] = (ownerId, input) =>
+      Effect.gen(function* () {
+        const dependentId = yield* ids.next;
+        const linkId = yield* ids.next;
+        const now = new Date(yield* Clock.currentTimeMillis);
+        return yield* repo.create({
+          caregiverId: ownerId,
+          dependentId,
+          linkId,
+          values: input,
+          now,
+        });
+      });
 
-      list: (ownerId, limit, cursor) =>
-        Effect.gen(function* () {
-          let beforeId: string | undefined;
-          if (cursor !== undefined) {
-            const decoded = decodeCursor(cursor);
-            if (!UUID_RE.test(decoded)) {
-              return yield* Effect.fail(
-                new ValidationFailed({ issues: [{ path: "cursor", message: "Invalid cursor." }] }),
-              );
-            }
-            beforeId = decoded;
+    const list: DependentServiceService["list"] = (ownerId, limit, cursor) =>
+      Effect.gen(function* () {
+        let beforeId: string | undefined;
+        if (cursor !== undefined) {
+          const decoded = decodeCursor(cursor);
+          if (!UUID_RE.test(decoded)) {
+            return yield* Effect.fail(
+              new ValidationFailed({ issues: [{ path: "cursor", message: "Invalid cursor." }] }),
+            );
           }
-          const rows = yield* repo.listByOwner(ownerId, limit + 1, beforeId);
-          const hasNextPage = rows.length > limit;
-          const data = hasNextPage ? rows.slice(0, limit) : rows;
-          const last = data.at(-1);
-          return {
-            data,
-            meta: {
-              count: data.length,
-              limit,
-              nextCursor: hasNextPage && last ? encodeCursor(last.id) : null,
-              hasNextPage,
-            },
-          };
-        }),
+          beforeId = decoded;
+        }
+        const rows = yield* repo.listByCaregiver(ownerId, limit + 1, beforeId);
+        const hasNextPage = rows.length > limit;
+        const data = hasNextPage ? rows.slice(0, limit) : rows;
+        const last = data.at(-1);
+        return {
+          data,
+          meta: {
+            count: data.length,
+            limit,
+            nextCursor: hasNextPage && last ? encodeCursor(last.id) : null,
+            hasNextPage,
+          },
+        };
+      });
 
-      get: (ownerId, id) =>
-        repo
-          .findForOwner(ownerId, id)
-          .pipe(
-            Effect.flatMap((found) =>
-              found === undefined
-                ? Effect.fail(new NotFound({ resource: "Dependent", id }))
-                : Effect.succeed(found),
-            ),
+    const get: DependentServiceService["get"] = (ownerId, id) =>
+      repo
+        .findForCaregiver(ownerId, id)
+        .pipe(
+          Effect.flatMap((found) =>
+            found === undefined
+              ? Effect.fail(new NotFound({ resource: "Dependent", id }))
+              : Effect.succeed(found),
           ),
+        );
 
-      update: (ownerId, id, patch) =>
-        Effect.gen(function* () {
-          // An all-optional body can be empty; issuing `.set({})` makes Drizzle
-          // throw ("No values to set"). Treat a no-op patch as a plain read.
-          const hasChanges = Object.values(patch).some((value) => value !== undefined);
-          const updated = hasChanges
-            ? yield* repo.update(ownerId, id, patch)
-            : yield* repo.findForOwner(ownerId, id);
-          return updated === undefined
-            ? yield* Effect.fail(new NotFound({ resource: "Dependent", id }))
-            : updated;
-        }),
+    const update: DependentServiceService["update"] = (ownerId, id, patch) =>
+      Effect.gen(function* () {
+        // An empty patch is a no-op read — the repo skips the empty `.set({})`.
+        const now = new Date(yield* Clock.currentTimeMillis);
+        const updated = yield* repo.update(ownerId, id, patch, now);
+        return updated === undefined
+          ? yield* Effect.fail(new NotFound({ resource: "Dependent", id }))
+          : updated;
+      });
 
-      remove: (ownerId, id) =>
-        Effect.gen(function* () {
-          const now = new Date(yield* Clock.currentTimeMillis);
-          const deleted = yield* repo.softDelete(ownerId, id, now);
-          if (!deleted) {
-            return yield* Effect.fail(new NotFound({ resource: "Dependent", id }));
-          }
-        }),
-    } satisfies DependentServiceService;
+    const remove: DependentServiceService["remove"] = (ownerId, id) =>
+      Effect.gen(function* () {
+        const now = new Date(yield* Clock.currentTimeMillis);
+        const deleted = yield* repo.unlink(ownerId, id, now);
+        if (!deleted) {
+          return yield* Effect.fail(new NotFound({ resource: "Dependent", id }));
+        }
+      });
+
+    return { create, list, get, update, remove };
   }),
 );

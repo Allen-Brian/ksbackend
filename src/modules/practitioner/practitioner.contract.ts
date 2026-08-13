@@ -3,57 +3,246 @@ import { z } from "@hono/zod-openapi";
 const phone = z
   .string()
   .regex(/^\+[1-9]\d{6,14}$/, "Phone must be E.164, e.g. +237650000000")
-  .optional();
+  .optional()
+  .openapi({ description: "E.164 phone number.", example: "+237650000000" });
 
 export const RegisterPractitionerBody = z
   .object({
-    role: z.enum(["doctor", "nurse"]),
-    professionId: z.uuid(),
-    prefix: z.string().max(20).optional(),
-    surname: z.string().min(1).max(120),
-    givenNames: z.string().min(1).max(120),
+    role: z
+      .enum(["doctor", "nurse"])
+      .openapi({ description: "Which kind of practitioner to register as.", example: "doctor" }),
+    professionId: z.uuid().openapi({
+      description: "UUID of the chosen profession from the professions catalog.",
+      example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    }),
+    prefix: z
+      .string()
+      .max(20)
+      .optional()
+      .openapi({ description: "Title shown before the name.", example: "Dr." }),
+    surname: z
+      .string()
+      .min(1)
+      .max(120)
+      .openapi({ description: "Family name.", example: "Nkemtaji" }),
+    givenNames: z
+      .string()
+      .min(1)
+      .max(120)
+      .openapi({ description: "Given name(s).", example: "Emmanuel" }),
     phone,
-    dateOfBirth: z.iso.date().optional(),
-    sex: z.enum(["male", "female"]).optional(),
-    location: z.string().max(200).optional(),
-    consentVersion: z.string().min(1).max(20),
-    acceptTerms: z.literal(true),
+    dateOfBirth: z.iso
+      .date()
+      .optional()
+      .openapi({ description: "Date of birth (YYYY-MM-DD).", example: "1985-03-12" }),
+    sex: z
+      .enum(["male", "female"])
+      .optional()
+      .openapi({ description: "Biological sex.", example: "male" }),
+    location: z.string().max(200).optional().openapi({
+      description: "City / region where the practitioner is based.",
+      example: "Douala",
+    }),
+    consentVersion: z
+      .string()
+      .min(1)
+      .max(20)
+      .openapi({ description: "Version of the terms the user consented to.", example: "2025-01" }),
+    acceptTerms: z
+      .literal(true)
+      .openapi({ description: "Must be `true` — the user must accept the terms to register." }),
   })
   .openapi("RegisterPractitioner");
 
 export const PresignDocumentBody = z
   .object({
-    kind: z.enum(["cmc-certificate", "nic", "profile-photo"]),
-    contentType: z.string().min(1).max(100),
+    kind: z.enum(["cmc-certificate", "nic", "profile-photo"]).openapi({
+      description:
+        "Which document this upload is for. `cmc-certificate` = Cameroon Medical Council registration certificate; `nic` = national ID card; `profile-photo` = the practitioner's photo.",
+      example: "cmc-certificate",
+    }),
+    contentType: z.string().min(1).max(100).openapi({
+      description: "MIME type of the file you're about to upload.",
+      example: "application/pdf",
+    }),
   })
   .openapi("PresignDocument");
 
 export const PresignDocumentResponse = z
-  .object({ url: z.string(), key: z.string() })
+  .object({
+    url: z.string().openapi({
+      description: "Short-lived URL — PUT the raw file bytes here (no auth header needed).",
+    }),
+    key: z.string().openapi({
+      description:
+        "Storage key of the uploaded file. Send it back on POST /v1/practitioners/me/credentials once the PUT succeeds.",
+      example: "practitioners/3f1a2b6c/cmc-certificate/1a2b3c.pdf",
+    }),
+  })
   .openapi("PresignedUpload");
 
 export const SubmitCredentialsBody = z
   .object({
-    cmcRegistrationNumber: z.string().min(3).max(60),
-    nicNumber: z.string().min(3).max(60),
-    cmcCertificateFileKey: z.string().min(1),
-    nicFileKey: z.string().min(1),
-    profilePhotoFileKey: z.string().min(1),
+    cmcRegistrationNumber: z.string().min(3).max(60).openapi({
+      description: "Cameroon Medical Council registration number.",
+      example: "CMC-2024-01234",
+    }),
+    nicNumber: z
+      .string()
+      .min(3)
+      .max(60)
+      .openapi({ description: "National ID card (NIC) number.", example: "123456789" }),
+    cmcCertificateFileKey: z.string().min(1).openapi({
+      description: "The `key` returned by the presign call for `kind: cmc-certificate`.",
+      example: "practitioners/3f1a2b6c/cmc-certificate/1a2b3c.pdf",
+    }),
+    nicFileKey: z.string().min(1).openapi({
+      description: "The `key` returned by the presign call for `kind: nic`.",
+      example: "practitioners/3f1a2b6c/nic/4d5e6f.jpg",
+    }),
+    profilePhotoFileKey: z.string().min(1).openapi({
+      description: "The `key` returned by the presign call for `kind: profile-photo`.",
+      example: "practitioners/3f1a2b6c/profile-photo/7g8h9i.jpg",
+    }),
   })
   .openapi("SubmitCredentials");
 
+const publicFields = {
+  specialty: z
+    .string()
+    .nullable()
+    .openapi({ description: "Clinical specialty. Null until set.", example: "Cardiology" }),
+  bio: z.string().nullable().openapi({
+    description: "Free-text professional bio shown to patients. Null until set.",
+    example: "Board-certified cardiologist with a focus on preventive care.",
+  }),
+  languagesSpoken: z
+    .array(z.string())
+    .nullable()
+    .openapi({
+      description: "Languages the practitioner consults in. Null until set.",
+      example: ["French", "English"],
+    }),
+  yearsExperience: z
+    .number()
+    .int()
+    .nullable()
+    .openapi({ description: "Years of professional experience. Null until set.", example: 8 }),
+  consultationFeeXaf: z.number().int().nullable().openapi({
+    description: "Consultation fee in XAF (integer, no decimals). Null until set.",
+    example: 15000,
+  }),
+};
+
 export const PractitionerResponse = z
   .object({
-    id: z.uuid(),
-    userId: z.string(),
-    professionId: z.uuid(),
-    prefix: z.string().nullable(),
-    surname: z.string(),
-    givenNames: z.string(),
-    phone: z.string().nullable(),
-    dateOfBirth: z.string().nullable(),
-    sex: z.enum(["male", "female"]).nullable(),
-    location: z.string().nullable(),
-    verificationStatus: z.enum(["incomplete", "pending_verification", "verified", "rejected"]),
+    id: z.uuid().openapi({
+      description: "Practitioner profile id (distinct from the user id).",
+      example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    }),
+    userId: z.string().openapi({ description: "The owning user's id.", example: "usr_9f3c…" }),
+    professionId: z.uuid().openapi({
+      description: "UUID of the profession from the professions catalog.",
+      example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    }),
+    prefix: z
+      .string()
+      .nullable()
+      .openapi({ description: "Title shown before the name.", example: "Dr." }),
+    surname: z.string().openapi({ description: "Family name.", example: "Nkemtaji" }),
+    givenNames: z.string().openapi({ description: "Given name(s).", example: "Emmanuel" }),
+    phone: z
+      .string()
+      .nullable()
+      .openapi({ description: "E.164 phone number (private).", example: "+237650000000" }),
+    dateOfBirth: z
+      .string()
+      .nullable()
+      .openapi({ description: "Date of birth, YYYY-MM-DD (private).", example: "1985-03-12" }),
+    sex: z
+      .enum(["male", "female"])
+      .nullable()
+      .openapi({ description: "Biological sex (private).", example: "male" }),
+    location: z.string().nullable().openapi({ description: "City / region.", example: "Douala" }),
+    ...publicFields,
+    verificationStatus: z
+      .enum(["incomplete", "pending_verification", "verified", "rejected"])
+      .openapi({
+        description:
+          "Where the profile sits in the verification flow. `incomplete` = registered, credentials not yet submitted; `pending_verification` = credentials submitted, awaiting admin review; `verified` = approved and publicly bookable; `rejected` = admin rejected the credentials.",
+        example: "incomplete",
+      }),
   })
   .openapi("Practitioner");
+
+export const UpdatePublicProfileBody = z
+  .object({
+    prefix: z
+      .string()
+      .max(20)
+      .optional()
+      .openapi({ description: "Title shown before the name.", example: "Dr." }),
+    location: z.string().max(200).optional().openapi({
+      description: "City / region where the practitioner is based.",
+      example: "Douala",
+    }),
+    specialty: z
+      .string()
+      .max(120)
+      .optional()
+      .openapi({ description: "Clinical specialty.", example: "Cardiology" }),
+    bio: z.string().max(2000).optional().openapi({
+      description: "Free-text professional bio shown to patients.",
+      example: "Board-certified cardiologist with a focus on preventive care.",
+    }),
+    languagesSpoken: z
+      .array(z.string().min(1).max(40))
+      .max(10)
+      .optional()
+      .openapi({
+        description: "Languages the practitioner consults in (max 10).",
+        example: ["French", "English"],
+      }),
+    yearsExperience: z
+      .number()
+      .int()
+      .min(0)
+      .max(80)
+      .optional()
+      .openapi({ description: "Years of professional experience (0–80).", example: 8 }),
+    consultationFeeXaf: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000_000)
+      .optional()
+      .openapi({ description: "Consultation fee in XAF (integer, no decimals).", example: 15000 }),
+  })
+  .openapi("UpdatePublicProfile");
+
+// Public/bookable view — no phone/DOB/sex/identifiers.
+export const PublicPractitionerResponse = z
+  .object({
+    id: z.uuid().openapi({
+      description: "Practitioner profile id.",
+      example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    }),
+    professionId: z.uuid().openapi({
+      description: "UUID of the profession from the professions catalog.",
+      example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    }),
+    prefix: z
+      .string()
+      .nullable()
+      .openapi({ description: "Title shown before the name.", example: "Dr." }),
+    surname: z.string().openapi({ description: "Family name.", example: "Nkemtaji" }),
+    givenNames: z.string().openapi({ description: "Given name(s).", example: "Emmanuel" }),
+    location: z.string().nullable().openapi({ description: "City / region.", example: "Douala" }),
+    ...publicFields,
+    photoUrl: z.string().nullable().openapi({
+      description: "Presigned download URL for the profile photo. Null if none is set.",
+      example:
+        "https://media.kanasante.example/practitioners/3f1a2b6c/profile-photo/7g8h9i.jpg?sig=…",
+    }),
+  })
+  .openapi("PublicPractitioner");
