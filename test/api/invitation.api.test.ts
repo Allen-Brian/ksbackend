@@ -4,6 +4,7 @@ import { user } from "@/db/schema/auth";
 import { caregiverLink } from "@/db/schema/caregiver-link";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 

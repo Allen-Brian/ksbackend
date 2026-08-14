@@ -81,6 +81,11 @@ export const makeAuth = (options: AuthOptions) => {
     return value === "en" || value === "fr" ? value : options.defaultLocale;
   };
 
+  const rateLimit =
+    options.rateLimit === undefined
+      ? { customRules: otpSendRules }
+      : { enabled: options.rateLimit.enabled, customRules: otpSendRules };
+
   const instance = betterAuth({
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
     emailAndPassword: {
@@ -92,10 +97,7 @@ export const makeAuth = (options: AuthOptions) => {
     secret: options.secret,
     baseURL: options.baseURL,
     trustedOrigins: options.trustedOrigins ? [...options.trustedOrigins] : undefined,
-    rateLimit: {
-      ...(options.rateLimit ? { enabled: options.rateLimit.enabled } : {}),
-      customRules: otpSendRules,
-    },
+    rateLimit,
     user: {
       additionalFields: {
         role: { type: "string", required: false, defaultValue: "patient", input: false },

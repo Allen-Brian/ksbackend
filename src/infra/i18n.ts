@@ -4,7 +4,9 @@ import fr from "./locales/fr.json";
 export const LOCALES = ["en", "fr"] as const;
 export type Locale = (typeof LOCALES)[number];
 
-const dictionaries: Record<Locale, Record<string, string>> = { en, fr };
+type Dictionary = Readonly<Record<string, string>>;
+const dictionaries = { en, fr } satisfies Record<Locale, Dictionary>;
+const dictionaryFor = (locale: Locale): Dictionary => dictionaries[locale];
 
 const LOCALE_SET: ReadonlySet<string> = new Set(LOCALES);
 const isLocale = (value: string): value is Locale => LOCALE_SET.has(value);
@@ -33,7 +35,7 @@ export const translate = (
   key: string,
   params: Record<string, string | number> = {},
 ): string => {
-  const template = dictionaries[locale][key] ?? dictionaries.en[key] ?? key;
+  const template = dictionaryFor(locale)[key] ?? dictionaryFor("en")[key] ?? key;
   return template.replace(/\{(\w+)\}/g, (_match, name: string) =>
     name in params ? String(params[name]) : `{${name}}`,
   );

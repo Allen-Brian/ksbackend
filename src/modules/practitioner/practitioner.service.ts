@@ -29,16 +29,16 @@ const DOC_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
-const ALLOWED_CONTENT_TYPES: Record<DocumentKind, ReadonlyArray<string>> = {
+const ALLOWED_CONTENT_TYPES = {
   "cmc-certificate": DOC_TYPES,
   nic: DOC_TYPES,
   "profile-photo": ["image/jpeg", "image/png"],
-};
-const KEY_PREFIX: Record<DocumentKind, string> = {
+} satisfies Record<DocumentKind, ReadonlyArray<string>>;
+const KEY_PREFIX = {
   "cmc-certificate": "practitioner-documents",
   nic: "practitioner-documents",
   "profile-photo": "profile-photos",
-};
+} satisfies Record<DocumentKind, string>;
 
 export interface PractitionerServiceService {
   readonly register: (

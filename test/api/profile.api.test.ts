@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 
 // The base profile (1:1 with the user) shared by every role, read/edited via

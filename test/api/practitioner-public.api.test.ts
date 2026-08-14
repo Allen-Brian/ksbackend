@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 const PROFESSION_ID = "00000000-0000-4000-8000-000000000055";
 
@@ -116,7 +117,13 @@ describe("practitioner public profile API (real DB)", () => {
       headers: { cookie: patientCookie },
     });
     expect(res.status).toBe(200);
-    const body = await json<Record<string, unknown>>(res);
+    const body = await json<{
+      readonly specialty?: string | null;
+      readonly photoUrl?: string | null;
+      readonly phone?: string | null;
+      readonly dateOfBirth?: string | null;
+      readonly sex?: string | null;
+    }>(res);
     expect(body.specialty).toBe("Cardiology");
     expect(body.photoUrl).toBeTruthy();
     // Sensitive/private fields must NOT be in the public view.

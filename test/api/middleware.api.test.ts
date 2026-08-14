@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
 const errorCode = async (res: Response): Promise<string> =>
+  // SAFETY: middleware tests only call endpoints expected to return the standard error envelope.
   (await (res.json() as Promise<{ error: { code: string } }>)).error.code;
 
 // Cross-cutting middleware wiring. Rate limit is set to 2/window via config so it

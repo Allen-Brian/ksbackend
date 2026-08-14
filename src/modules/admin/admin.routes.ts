@@ -9,6 +9,7 @@ import {
   PendingVerificationsResponse,
   RejectBody,
   VerificationDetailResponse,
+  VerificationPractitionerResponse,
 } from "./admin.contract";
 
 const jsonBody = <T>(schema: T) => ({ content: { "application/json": { schema } } });
@@ -105,7 +106,7 @@ const approve = createRoute({
   request: { params: IdParam },
   responses: {
     200: {
-      ...jsonBody(VerificationDetailResponse.shape.practitioner),
+      ...jsonBody(VerificationPractitionerResponse),
       description: "The practitioner record, now verified.",
     },
     401: { ...jsonBody(ErrorResponse), description: "No valid session." },
@@ -135,7 +136,7 @@ const reject = createRoute({
   request: { params: IdParam, body: jsonBody(RejectBody) },
   responses: {
     200: {
-      ...jsonBody(VerificationDetailResponse.shape.practitioner),
+      ...jsonBody(VerificationPractitionerResponse),
       description: "The practitioner record, now rejected.",
     },
     401: { ...jsonBody(ErrorResponse), description: "No valid session." },

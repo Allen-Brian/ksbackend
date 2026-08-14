@@ -5,12 +5,14 @@ import { PractitionerResponse } from "@/modules/practitioner/practitioner.contra
 export const PendingVerificationsResponse =
   paginated(PractitionerResponse).openapi("PendingVerifications");
 
+export const VerificationPractitionerResponse = PractitionerResponse.openapi({
+  description:
+    "The practitioner profile record under review (same shape as GET /v1/practitioners/me).",
+});
+
 export const VerificationDetailResponse = z
   .object({
-    practitioner: PractitionerResponse.openapi({
-      description:
-        "The practitioner profile record under review (same shape as GET /v1/practitioners/me).",
-    }),
+    practitioner: VerificationPractitionerResponse,
     cmcRegistrationNumber: z.string().openapi({
       description:
         "DECRYPTED Cameroon Medical Council registration number — decrypted server-side for the reviewer; stored encrypted at rest.",

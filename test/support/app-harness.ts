@@ -6,7 +6,7 @@ import { adminProfile } from "@/db/schema/admin-profile";
 import { user } from "@/db/schema/auth";
 import type { AdminScope } from "@/domain/admin/admin";
 import { createApp } from "@/http/app";
-import { makeAuth } from "@/infra/auth";
+import { makeAuth, type AuthOptions } from "@/infra/auth";
 import { type EmailClient, EmailSender, type EmailMessage } from "@/infra/email";
 import { FileScanner, type ScanStatus } from "@/infra/scanner";
 import { FileStorageFakeLive } from "@/infra/storage";
@@ -17,12 +17,19 @@ export type TestHarness = {
   readonly app: ReturnType<typeof createApp>;
   readonly db: ReturnType<typeof drizzle>;
   readonly sent: ReadonlyArray<EmailMessage>;
-  readonly post: (path: string, body: unknown, cookie?: string) => Promise<Response>;
+  readonly post: (path: string, body: JsonValue, cookie?: string) => Promise<Response>;
   readonly signUpAndVerify: (email: string, password: string, name: string) => Promise<string>;
   /** Promote an existing user to admin with the given scope (role + admin_profile). */
   readonly promoteToAdmin: (email: string, scope?: AdminScope) => Promise<void>;
   readonly otpFor: (email: string) => string;
   readonly dispose: () => Promise<void>;
+};
+
+type JsonObject = { readonly [key: string]: JsonValue };
+type JsonValue = string | number | boolean | null | JsonObject | ReadonlyArray<JsonValue>;
+type HarnessConfig = {
+  readonly RATE_LIMIT_MAX?: string;
+  readonly RATE_LIMIT_WINDOW_SECONDS?: string;
 };
 
 // A scan-aware fake: any file key containing "infected" reports infected, so the
@@ -38,7 +45,7 @@ const scannerFake = Layer.succeed(FileScanner, {
  * (e.g. RATE_LIMIT_MAX) while falling back to the environment for the rest.
  */
 export const createTestHarness = async (
-  config?: Record<string, string>,
+  config?: HarnessConfig,
   authOpts?: { readonly rateLimit?: { readonly enabled: boolean } },
 ): Promise<TestHarness> => {
   const pg = await startTestPostgres();
@@ -70,22 +77,27 @@ export const createTestHarness = async (
         );
 
   const runtime = ManagedRuntime.make(appLayer);
-  const auth = makeAuth({
+  const authBase = {
     databaseUrl: pg.url,
     secret: "test-secret-minimum-32-characters-long",
     baseURL: "http://localhost:3000",
     defaultLocale: "en",
     emailClient,
-    ...(authOpts?.rateLimit ? { rateLimit: authOpts.rateLimit } : {}),
-  });
+  } satisfies Omit<AuthOptions, "rateLimit">;
+  const auth = makeAuth(
+    authOpts?.rateLimit === undefined ? authBase : { ...authBase, rateLimit: authOpts.rateLimit },
+  );
   const app = createApp(runtime, auth.instance);
 
-  const post = async (path: string, body: unknown, cookie?: string): Promise<Response> =>
-    app.request(path, {
+  const post = async (path: string, body: JsonValue, cookie?: string): Promise<Response> => {
+    const headers = new Headers({ "content-type": "application/json" });
+    if (cookie !== undefined) headers.set("cookie", cookie);
+    return app.request(path, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+      headers,
       body: JSON.stringify(body),
     });
+  };
 
   const otpFor = (email: string): string => {
     const message = sent.toReversed().find((m) => m.to === email && /\d{6}/.test(m.html));

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 const PROFESSION_ID = "00000000-0000-4000-8000-000000000009";
 

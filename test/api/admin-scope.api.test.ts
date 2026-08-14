@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { user } from "@/db/schema/auth";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 
 // Admin actions are gated on admin_profile scope; a bare `admin` role isn't enough.

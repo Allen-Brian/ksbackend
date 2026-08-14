@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
 type Pref = { category: string; email: boolean; sms: boolean; push: boolean };
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 
 // Notification preferences: per channel (email/sms/push) × category, with defaults

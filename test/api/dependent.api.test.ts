@@ -5,6 +5,7 @@ import { caregiverLink } from "@/db/schema/caregiver-link";
 import { dependent } from "@/db/schema/dependent";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
+// SAFETY: API tests call endpoints with known response contracts and immediately assert on those shapes.
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 
 // Dependent CRUD + ownership scoping against a real Postgres.

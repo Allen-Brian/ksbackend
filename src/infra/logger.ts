@@ -9,7 +9,7 @@ import { AppConfig } from "./config";
 const forwardToEvlog = Logger.make(({ logLevel, message }) => {
   const event = {
     level: logLevel.label,
-    message: typeof message === "string" ? message : JSON.stringify(message),
+    message: String(message),
   };
   switch (logLevel._tag) {
     case "Fatal":
