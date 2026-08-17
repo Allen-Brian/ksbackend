@@ -18,6 +18,7 @@ from domain tagged error → `(status, code)` lives in one place: `src/http/erro
 | `CONFLICT`                   | 409  | `Conflict`                       | Duplicate / state conflict (incl. client-supplied id)                    |
 | `VERIFICATION_STATE_INVALID` | 409  | `VerificationStateInvalid`       | Verification transition not allowed from the profile's current status    |
 | `VALIDATION_FAILED`          | 422  | `ValidationFailed`               | Request failed schema/domain validation (`details` carries field issues) |
+| `SLOT_OVERLAP`               | 409  | `SlotOverlap`                    | A published availability slot overlaps an existing one                   |
 | `PAYLOAD_TOO_LARGE`          | 413  | _(bodyLimit middleware)_         | Request body exceeds the 1 MB limit                                      |
 | `RATE_LIMITED`               | 429  | _(rate-limit middleware)_        | Too many requests (`Retry-After` header carries the wait in seconds)     |
 | `INTERNAL`                   | 500  | _(any unhandled failure/defect)_ | Unexpected server error (cause logged with `requestId`)                  |
