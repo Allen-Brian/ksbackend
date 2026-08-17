@@ -15,9 +15,11 @@ import {
   VerificationStateInvalid,
 } from "@/domain/shared/errors";
 import { Crypto } from "@/infra/crypto";
+import { Geocoder } from "@/infra/geocoding";
 import { IdGenerator } from "@/infra/ids";
 import { FileScanner } from "@/infra/scanner";
 import { FileStorage, type PresignedUpload, type StorageError } from "@/infra/storage";
+import { AvailabilityRepo } from "@/modules/availability/availability.repo";
 import { ProfileRepo } from "@/modules/profile/profile.repo";
 import { PractitionerRepo } from "./practitioner.repo";
 
@@ -67,11 +69,13 @@ export interface PractitionerServiceService {
     userId: string,
     patch: PublicProfilePatch,
   ) => Effect.Effect<Practitioner, NotFound | SqlError.SqlError>;
-  /** A verified practitioner's public profile + presigned photo, for patients. */
-  readonly getPublic: (
-    id: string,
-  ) => Effect.Effect<
-    { readonly practitioner: Practitioner; readonly photoUrl: string | null },
+  /** A verified practitioner's public profile + presigned photo + next open slot, for patients. */
+  readonly getPublic: (id: string) => Effect.Effect<
+    {
+      readonly practitioner: Practitioner;
+      readonly photoUrl: string | null;
+      readonly nextAvailableAt: Date | null;
+    },
     NotFound | StorageError | SqlError.SqlError
   >;
 }
@@ -86,11 +90,33 @@ export const PractitionerServiceLive = Layer.effect(
   Effect.gen(function* () {
     const repo = yield* PractitionerRepo;
     const profiles = yield* ProfileRepo;
+    const availability = yield* AvailabilityRepo;
+    const geocoder = yield* Geocoder;
     const ids = yield* IdGenerator;
     const crypto = yield* Crypto;
     const scanner = yield* FileScanner;
     const storage = yield* FileStorage;
     const sql = yield* SqlClient.SqlClient;
+
+    // Best-effort: geocode the location to coordinates for distance search. Runs after the
+    // profile write commits and is awaited inline (not forked); a failed lookup (unknown place
+    // or provider hiccup) logs and leaves coords unset — it must never fail the write itself
+    // (mirrors the admin email-notify pattern).
+    const geocodeAndStore = (userId: string, location: string | null | undefined) =>
+      location === null || location === undefined || location.trim() === ""
+        ? Effect.void
+        : geocoder.geocode(location).pipe(
+            Effect.flatMap((coords) =>
+              coords === null
+                ? Effect.void
+                : Effect.flatMap(Clock.currentTimeMillis, (ms) =>
+                    repo.setCoordinates(userId, coords, new Date(ms)),
+                  ),
+            ),
+            Effect.catchAll((cause) =>
+              Effect.logWarning("geocode failed; coordinates left unchanged", cause),
+            ),
+          );
 
     return {
       register: (userId, role, input) =>
@@ -125,6 +151,7 @@ export const PractitionerServiceLive = Layer.effect(
             }),
           );
           const created = yield* repo.findByUserId(userId);
+          yield* geocodeAndStore(userId, input.location);
           return created ?? (yield* Effect.dieMessage("practitioner missing after create"));
         }),
 
@@ -212,9 +239,14 @@ export const PractitionerServiceLive = Layer.effect(
         Effect.gen(function* () {
           const now = new Date(yield* Clock.currentTimeMillis);
           const updated = yield* repo.updatePublic(userId, patch, now);
-          return updated === undefined
-            ? yield* Effect.fail(new NotFound({ resource: "Practitioner profile" }))
-            : updated;
+          if (updated === undefined) {
+            return yield* Effect.fail(new NotFound({ resource: "Practitioner profile" }));
+          }
+          // Re-geocode only when the location actually changed.
+          if (patch.location !== undefined) {
+            yield* geocodeAndStore(userId, patch.location);
+          }
+          return updated;
         }),
 
       getPublic: (id) =>
@@ -228,7 +260,9 @@ export const PractitionerServiceLive = Layer.effect(
             found.profilePhotoFileKey === null
               ? null
               : yield* storage.presignDownload(found.profilePhotoFileKey);
-          return { practitioner: found, photoUrl };
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const nextAvailableAt = yield* availability.nextAvailableAt(found.id, now);
+          return { practitioner: found, photoUrl, nextAvailableAt };
         }),
     } satisfies PractitionerServiceService;
   }),

@@ -6,7 +6,9 @@
  *      - test/api/**            → `*.api.test.ts`
  *      - test/integration/**    → `*.integration.test.ts`
  *      - src/modules/<feature>/ → `<feature>.<role>[.test].ts`,
- *        role ∈ {routes, service, repo, policy, contract}
+ *        role ∈ {routes, service, repo, policy, contract}. A module may nest
+ *        sub-feature folders (e.g. practitioner/search/search.repo.ts): a file's
+ *        required prefix is the name of the folder it lives in.
  *
  *   2. Import-boundary rules (see docs/architecture.md → "Layers"):
  *      dependencies point inward only — `domain ← modules ← http`, over shared
@@ -45,7 +47,9 @@ for (const file of files) {
   }
 
   if (file.startsWith("src/modules/")) {
-    const feature = parts[2];
+    // A module file's feature prefix is the name of the folder it lives in, so a
+    // module may nest sub-feature folders (e.g. practitioner/search/search.repo.ts).
+    const feature = parts.at(-2);
     if (feature === undefined) continue;
 
     let core = name.slice(0, -".ts".length);
@@ -53,7 +57,7 @@ for (const file of files) {
     const segments = core.split(".");
 
     if (segments[0] !== feature) {
-      fail(file, `must start with its feature name "${feature}." (got "${segments[0] ?? ""}")`);
+      fail(file, `must start with its folder name "${feature}." (got "${segments[0] ?? ""}")`);
     } else if (!isRole(segments[1])) {
       fail(file, `role must be one of: ${ROLES.join(", ")} (e.g. ${feature}.service.ts)`);
     } else if (segments.length > 2) {

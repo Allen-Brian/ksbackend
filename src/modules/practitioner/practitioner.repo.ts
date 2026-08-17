@@ -36,6 +36,11 @@ const toDomain = (p: Row, base: ProfileRow): Practitioner => ({
   languagesSpoken: p.languagesSpoken,
   yearsExperience: p.yearsExperience,
   consultationFeeXaf: p.consultationFeeXaf,
+  consultationTypes: p.consultationTypes,
+  ratingAverage: p.ratingAverage,
+  ratingCount: p.ratingCount,
+  latitude: p.latitude,
+  longitude: p.longitude,
   cmcCertificateFileKey: p.cmcCertificateFileKey,
   nicFileKey: p.nicFileKey,
   profilePhotoFileKey: p.profilePhotoFileKey,
@@ -81,6 +86,11 @@ export interface PractitionerRepoService {
     patch: PublicProfilePatch,
     updatedAt: Date,
   ) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
+  readonly setCoordinates: (
+    userId: string,
+    coords: { readonly latitude: number; readonly longitude: number },
+    updatedAt: Date,
+  ) => Effect.Effect<void, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Practitioner | undefined, SqlError.SqlError>;
   readonly findByIdWithSecrets: (
     id: string,
@@ -202,6 +212,9 @@ export const PractitionerRepoLive = Layer.effect(
             ...(patch.consultationFeeXaf !== undefined && {
               consultationFeeXaf: patch.consultationFeeXaf,
             }),
+            ...(patch.consultationTypes !== undefined && {
+              consultationTypes: [...patch.consultationTypes],
+            }),
             updatedAt,
           })
           .where(eq(practitionerProfile.userId, userId))
@@ -217,6 +230,13 @@ export const PractitionerRepoLive = Layer.effect(
                 ),
             ),
           ),
+
+      setCoordinates: (userId, coords, updatedAt) =>
+        db
+          .update(practitionerProfile)
+          .set({ latitude: coords.latitude, longitude: coords.longitude, updatedAt })
+          .where(eq(practitionerProfile.userId, userId))
+          .pipe(Effect.asVoid),
 
       findById: (id) =>
         joined()

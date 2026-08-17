@@ -2,6 +2,7 @@ import { Layer, ManagedRuntime } from "effect";
 import { CryptoLive } from "./infra/crypto";
 import { DatabaseLive } from "./infra/db";
 import { EmailSender, EmailSenderConsoleLive, EmailSenderResendLive } from "./infra/email";
+import { Geocoder, GeocoderFakeLive, GeocoderNominatimLive } from "./infra/geocoding";
 import { HealthLive } from "./infra/health";
 import { IdGeneratorLive } from "./infra/ids";
 import { LoggerLive } from "./infra/logger";
@@ -10,6 +11,8 @@ import { FileScanner, FileScannerCleanLive, FileScannerS3Live } from "./infra/sc
 import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/storage";
 import { AdminRepoLive } from "./modules/admin/admin.repo";
 import { AdminServiceLive } from "./modules/admin/admin.service";
+import { AvailabilityRepoLive } from "./modules/availability/availability.repo";
+import { AvailabilityServiceLive } from "./modules/availability/availability.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
 import { InvitationRepoLive } from "./modules/invitation/invitation.repo";
@@ -18,16 +21,23 @@ import { NotificationRepoLive } from "./modules/notification/notification.repo";
 import { NotificationServiceLive } from "./modules/notification/notification.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
+import { PatientSearchRepoLive } from "./modules/patient/search/search.repo";
+import { PatientSearchServiceLive } from "./modules/patient/search/search.service";
 import { ProfileRepoLive } from "./modules/profile/profile.repo";
 import { ProfileServiceLive } from "./modules/profile/profile.service";
+import { ReviewRepoLive } from "./modules/review/review.repo";
+import { ReviewServiceLive } from "./modules/review/review.service";
 import { PractitionerRepoLive } from "./modules/practitioner/practitioner.repo";
 import { PractitionerServiceLive } from "./modules/practitioner/practitioner.service";
+import { PractitionerSearchRepoLive } from "./modules/practitioner/search/search.repo";
+import { PractitionerSearchServiceLive } from "./modules/practitioner/search/search.service";
 
 /** Swappable external infra. Real drivers when serving; fakes only under test. */
 export type InfraLayers = {
   readonly email: Layer.Layer<EmailSender, unknown, never>;
   readonly storage: Layer.Layer<FileStorage, unknown, never>;
   readonly scanner: Layer.Layer<FileScanner, unknown, never>;
+  readonly geocoder: Layer.Layer<Geocoder, unknown, never>;
 };
 
 /**
@@ -39,6 +49,7 @@ export const fakeInfra: InfraLayers = {
   email: EmailSenderConsoleLive,
   storage: FileStorageFakeLive,
   scanner: FileScannerCleanLive,
+  geocoder: GeocoderFakeLive,
 };
 
 /**
@@ -56,6 +67,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
   const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
   const invitationRepo = InvitationRepoLive.pipe(Layer.provide(database));
+  const availabilityRepo = AvailabilityRepoLive.pipe(Layer.provide(database));
 
   const profile = ProfileServiceLive.pipe(
     Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
@@ -68,18 +80,26 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const patient = PatientServiceLive.pipe(
     Layer.provide(Layer.mergeAll(patientRepo, profileRepo, idGen, database)),
   );
+  const patientSearchRepo = PatientSearchRepoLive.pipe(Layer.provide(database));
+  const patientSearch = PatientSearchServiceLive.pipe(Layer.provide(patientSearchRepo));
   const practitioner = PractitionerServiceLive.pipe(
     Layer.provide(
       Layer.mergeAll(
         practitionerRepo,
         profileRepo,
+        availabilityRepo,
         idGen,
         crypto,
         infra.scanner,
         infra.storage,
+        infra.geocoder,
         database,
       ),
     ),
+  );
+  const practitionerSearchRepo = PractitionerSearchRepoLive.pipe(Layer.provide(database));
+  const practitionerSearch = PractitionerSearchServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(practitionerSearchRepo, infra.storage)),
   );
   const admin = AdminServiceLive.pipe(
     Layer.provide(
@@ -94,6 +114,13 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
       ),
     ),
   );
+  const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
+  const review = ReviewServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(reviewRepo, practitionerRepo, idGen, database)),
+  );
+  const availability = AvailabilityServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(availabilityRepo, idGen, database)),
+  );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
   const invitation = InvitationServiceLive.pipe(
     Layer.provide(Layer.mergeAll(invitationRepo, idGen, infra.email, database)),
@@ -104,8 +131,12 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     profile,
     notification,
     patient,
+    patientSearch,
     practitioner,
+    practitionerSearch,
     admin,
+    review,
+    availability,
     dependent,
     invitation,
     health,
@@ -125,6 +156,7 @@ export const infraFor = (appEnv: string): InfraLayers => ({
   email: EmailSenderResendLive,
   storage: FileStorageS3Live,
   scanner: appEnv === "prod" || appEnv === "staging" ? FileScannerS3Live : FileScannerCleanLive,
+  geocoder: appEnv === "prod" || appEnv === "staging" ? GeocoderNominatimLive : GeocoderFakeLive,
 });
 
 /** Build the one application runtime (production entry). */

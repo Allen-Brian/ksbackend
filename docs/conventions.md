@@ -74,7 +74,10 @@ win.
 - **kebab-case filenames** everywhere — enforced by oxlint `unicorn/filename-case`.
 - **Module files:** `<feature>.<role>.ts`, role ∈ `routes | service | repo | policy | contract`
   (colocated unit test `<feature>.<role>.test.ts`). The folder name **is** the feature; every file
-  in it starts with that feature name. Enforced by `scripts/check-structure.ts` (`bun run check:structure`).
+  in it starts with that feature name. A module may **nest sub-feature folders** for a cohesive
+  slice — e.g. `practitioner/search/search.repo.ts` — where the required prefix is the name of the
+  folder the file lives in (use this for query _facets_ like search; give things with their own
+  table/lifecycle a top-level module instead). Enforced by `scripts/check-structure.ts`.
 - **API tests:** live only under `test/api/**` and are named `*.api.test.ts`. Enforced by the same script.
 - **Unit tests:** colocated as `src/**/*.test.ts`.
 - **Domain/infra/lib/middleware:** kebab-case; named by concern (e.g. `request-id.ts`, `config.ts`).

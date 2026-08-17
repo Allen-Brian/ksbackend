@@ -42,3 +42,15 @@ export const consentEventEnum = pgEnum("consent_event", [
   "revoked",
   "upgraded",
 ]);
+
+export const availabilitySlotStatusEnum = pgEnum("availability_slot_status", [
+  "open",
+  "booked",
+  "cancelled",
+]);
+
+export const consultationTypeEnum = pgEnum("consultation_type", [
+  "in_person",
+  "video",
+  "home_visit",
+]);

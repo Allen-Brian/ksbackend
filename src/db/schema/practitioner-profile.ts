@@ -1,6 +1,14 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  doublePrecision,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth";
-import { verificationStatusEnum } from "./enums";
+import { consultationTypeEnum, verificationStatusEnum } from "./enums";
 import { profession } from "./profession";
 
 // The practitioner extension of the base `profile`: profession, verification state,
@@ -23,6 +31,17 @@ export const practitionerProfile = pgTable("practitioner_profile", {
   languagesSpoken: text("languages_spoken").array(),
   yearsExperience: integer("years_experience"),
   consultationFeeXaf: integer("consultation_fee_xaf"),
+  consultationTypes: consultationTypeEnum("consultation_types").array(),
+  // Denormalized review aggregate — kept in sync (recompute-from-scratch) inside the
+  // same transaction as every review write, so search can sort/filter on it cheaply.
+  ratingAverage: numeric("rating_average", { precision: 3, scale: 2, mode: "number" })
+    .notNull()
+    .default(0),
+  ratingCount: integer("rating_count").notNull().default(0),
+  // Coordinates for distance sorting. `double precision` (not numeric) so node-pg
+  // returns a JS number for the haversine math. Populated best-effort by the Geocoder.
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   cmcNumberEncrypted: text("cmc_number_encrypted"),
   cmcNumberHmac: text("cmc_number_hmac").unique(),
   nicNumberEncrypted: text("nic_number_encrypted"),

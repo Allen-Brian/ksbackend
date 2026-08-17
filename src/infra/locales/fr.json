@@ -20,6 +20,7 @@
   "errors.UNSUPPORTED_FILE_TYPE": "Ce type de fichier n'est pas pris en charge.",
   "errors.FILE_INFECTED": "Le fichier téléversé n'a pas passé l'analyse de sécurité.",
   "errors.VERIFICATION_STATE_INVALID": "Cette action n'est pas autorisée tant que le profil est « {current} ».",
+  "errors.SLOT_OVERLAP": "Ce créneau chevauche un créneau que vous avez déjà publié.",
   "emails.common.expiry": "Ce code expire dans 5 minutes. Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail.",
   "emails.common.footer": "KanaSanté — des soins de confiance à portée de main.",
   "emails.otp.subject": "Votre code de vérification KanaSanté",
