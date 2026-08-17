@@ -36,6 +36,9 @@ const toResponse = (p: Practitioner) => ({
   languagesSpoken: p.languagesSpoken === null ? null : [...p.languagesSpoken],
   yearsExperience: p.yearsExperience,
   consultationFeeXaf: p.consultationFeeXaf,
+  consultationTypes: p.consultationTypes === null ? null : [...p.consultationTypes],
+  ratingAverage: p.ratingAverage,
+  ratingCount: p.ratingCount,
   verificationStatus: p.verificationStatus,
 });
 

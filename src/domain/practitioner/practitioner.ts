@@ -2,6 +2,10 @@ export type Sex = "male" | "female";
 
 export type VerificationStatus = "incomplete" | "pending_verification" | "verified" | "rejected";
 
+/** How a practitioner offers consultations. */
+export const CONSULTATION_TYPES = ["in_person", "video", "home_visit"] as const;
+export type ConsultationType = (typeof CONSULTATION_TYPES)[number];
+
 /** A practitioner profile as exposed to the practitioner themselves (no secrets). */
 export type Practitioner = {
   readonly id: string;
@@ -19,6 +23,11 @@ export type Practitioner = {
   readonly languagesSpoken: ReadonlyArray<string> | null;
   readonly yearsExperience: number | null;
   readonly consultationFeeXaf: number | null;
+  readonly consultationTypes: ReadonlyArray<ConsultationType> | null;
+  readonly ratingAverage: number;
+  readonly ratingCount: number;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
   readonly cmcCertificateFileKey: string | null;
   readonly nicFileKey: string | null;
   readonly profilePhotoFileKey: string | null;
@@ -34,6 +43,7 @@ export type PublicProfilePatch = {
   readonly languagesSpoken?: ReadonlyArray<string> | undefined;
   readonly yearsExperience?: number | undefined;
   readonly consultationFeeXaf?: number | undefined;
+  readonly consultationTypes?: ReadonlyArray<ConsultationType> | undefined;
 };
 
 export type PractitionerRegistration = {

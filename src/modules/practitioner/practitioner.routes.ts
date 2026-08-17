@@ -24,6 +24,9 @@ const publicFields = (p: Practitioner) => ({
   languagesSpoken: p.languagesSpoken === null ? null : [...p.languagesSpoken],
   yearsExperience: p.yearsExperience,
   consultationFeeXaf: p.consultationFeeXaf,
+  consultationTypes: p.consultationTypes === null ? null : [...p.consultationTypes],
+  ratingAverage: p.ratingAverage,
+  ratingCount: p.ratingCount,
 });
 
 const toResponse = (p: Practitioner) => ({
@@ -41,7 +44,11 @@ const toResponse = (p: Practitioner) => ({
   verificationStatus: p.verificationStatus,
 });
 
-const toPublicResponse = (p: Practitioner, photoUrl: string | null) => ({
+const toPublicResponse = (
+  p: Practitioner,
+  photoUrl: string | null,
+  nextAvailableAt: Date | null,
+) => ({
   id: p.id,
   professionId: p.professionId,
   prefix: p.prefix,
@@ -50,6 +57,7 @@ const toPublicResponse = (p: Practitioner, photoUrl: string | null) => ({
   location: p.location,
   ...publicFields(p),
   photoUrl,
+  nextAvailableAt: nextAvailableAt === null ? null : nextAvailableAt.toISOString(),
 });
 
 const register = createRoute({
@@ -283,8 +291,10 @@ export const registerPractitionerRoutes = (app: OpenAPIHono<AppEnv>, runtime: Ap
       c,
       Effect.gen(function* () {
         const service = yield* PractitionerService;
-        const { practitioner, photoUrl } = yield* service.getPublic(c.req.valid("param").id);
-        return c.json(toPublicResponse(practitioner, photoUrl), 200);
+        const { practitioner, photoUrl, nextAvailableAt } = yield* service.getPublic(
+          c.req.valid("param").id,
+        );
+        return c.json(toPublicResponse(practitioner, photoUrl, nextAvailableAt), 200);
       }),
     ),
   );

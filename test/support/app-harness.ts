@@ -8,6 +8,7 @@ import type { AdminScope } from "@/domain/admin/admin";
 import { createApp } from "@/http/app";
 import { makeAuth, type AuthOptions } from "@/infra/auth";
 import { type EmailClient, EmailSender, type EmailMessage } from "@/infra/email";
+import { GeocoderFakeLive } from "@/infra/geocoding";
 import { FileScanner, type ScanStatus } from "@/infra/scanner";
 import { FileStorageFakeLive } from "@/infra/storage";
 import { makeAppLayer } from "@/runtime";
@@ -63,6 +64,7 @@ export const createTestHarness = async (
     email: capturingEmailSender,
     storage: FileStorageFakeLive,
     scanner: scannerFake,
+    geocoder: GeocoderFakeLive,
   });
   const appLayer =
     config === undefined

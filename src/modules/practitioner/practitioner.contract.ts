@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { CONSULTATION_TYPES } from "@/domain/practitioner/practitioner";
 
 const phone = z
   .string()
@@ -132,6 +133,21 @@ const publicFields = {
     description: "Consultation fee in XAF (integer, no decimals). Null until set.",
     example: 15000,
   }),
+  consultationTypes: z
+    .array(z.enum(CONSULTATION_TYPES))
+    .nullable()
+    .openapi({
+      description: "How the practitioner consults. Null until set.",
+      example: ["in_person", "video"],
+    }),
+  ratingAverage: z.number().openapi({
+    description: "Average patient rating (0–5, one decimal). 0 when there are no reviews yet.",
+    example: 4.6,
+  }),
+  ratingCount: z.number().int().openapi({
+    description: "Number of patient reviews backing the average.",
+    example: 128,
+  }),
 };
 
 export const PractitionerResponse = z
@@ -217,6 +233,14 @@ export const UpdatePublicProfileBody = z
       .max(10_000_000)
       .optional()
       .openapi({ description: "Consultation fee in XAF (integer, no decimals).", example: 15000 }),
+    consultationTypes: z
+      .array(z.enum(CONSULTATION_TYPES))
+      .max(3)
+      .optional()
+      .openapi({
+        description: "How the practitioner consults (any of in_person, video, home_visit).",
+        example: ["in_person", "video"],
+      }),
   })
   .openapi("UpdatePublicProfile");
 
@@ -243,6 +267,10 @@ export const PublicPractitionerResponse = z
       description: "Presigned download URL for the profile photo. Null if none is set.",
       example:
         "https://media.kanasante.example/practitioners/3f1a2b6c/profile-photo/7g8h9i.jpg?sig=…",
+    }),
+    nextAvailableAt: z.string().nullable().openapi({
+      description: "ISO-8601 timestamp of the soonest open future slot; null if none.",
+      example: "2026-09-01T09:00:00.000Z",
     }),
   })
   .openapi("PublicPractitioner");
