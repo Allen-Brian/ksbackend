@@ -4,6 +4,7 @@
 // regenerate on version/plugin changes, then `bun run db:generate`.
 export * from "./admin-profile";
 export * from "./auth";
+export * from "./availability-slot";
 export * from "./caregiver-link";
 export * from "./consent-audit";
 export * from "./dependent";
@@ -13,4 +14,5 @@ export * from "./patient-profile";
 export * from "./practitioner-profile";
 export * from "./profile";
 export * from "./profession";
+export * from "./review";
 export * from "./verification-review";

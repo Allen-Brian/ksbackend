@@ -8,6 +8,20 @@
       "when": 1786370022729,
       "tag": "0000_famous_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786965048879,
+      "tag": "0001_grey_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786966419970,
+      "tag": "0002_enable_fuzzy_search",
+      "breakpoints": true
     }
   ]
 }
