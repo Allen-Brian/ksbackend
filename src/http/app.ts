@@ -15,8 +15,12 @@ import { registerAdminRoutes } from "@/modules/admin/admin.routes";
 import { registerDependentRoutes } from "@/modules/dependent/dependent.routes";
 import { registerInvitationRoutes } from "@/modules/invitation/invitation.routes";
 import { registerPatientRoutes } from "@/modules/patient/patient.routes";
+import { registerPatientSearchRoutes } from "@/modules/patient/search/search.routes";
 import { registerPractitionerRoutes } from "@/modules/practitioner/practitioner.routes";
+import { registerPractitionerSearchRoutes } from "@/modules/practitioner/search/search.routes";
 import { registerNotificationRoutes } from "@/modules/notification/notification.routes";
+import { registerReviewRoutes } from "@/modules/review/review.routes";
+import { registerAvailabilityRoutes } from "@/modules/availability/availability.routes";
 import { registerProfileRoutes } from "@/modules/profile/profile.routes";
 import type { AppEnv, AppRuntime } from "./app-env";
 import { toErrorResponse } from "./error-mapper";
@@ -157,7 +161,11 @@ export const createApp = (
   registerProfileRoutes(app, runtime);
   registerNotificationRoutes(app, runtime);
   registerPatientRoutes(app, runtime);
+  registerPatientSearchRoutes(app, runtime);
   registerPractitionerRoutes(app, runtime);
+  registerPractitionerSearchRoutes(app, runtime);
+  registerReviewRoutes(app, runtime);
+  registerAvailabilityRoutes(app, runtime);
   registerAdminRoutes(app, runtime);
   registerDependentRoutes(app, runtime);
   registerInvitationRoutes(app, runtime);
@@ -228,6 +236,21 @@ export const createApp = (
         name: "Practitioners",
         description:
           "Doctor/nurse registration, credential upload & submission, editable public profile, and the public bookable view.",
+      },
+      {
+        name: "Search",
+        description:
+          "Discovery: search verified, active practitioners as result cards with combinable filters and sorting.",
+      },
+      {
+        name: "Reviews",
+        description:
+          "Patient ratings + comments for practitioners; drives the average rating shown on discovery cards.",
+      },
+      {
+        name: "Availability",
+        description:
+          "Practitioners publish bookable time slots; drives the next-available slot shown on discovery cards.",
       },
       {
         name: "Admin",

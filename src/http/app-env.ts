@@ -6,12 +6,16 @@ import type { Health } from "@/infra/health";
 import type { Locale } from "@/infra/i18n";
 import type { RateLimiter } from "@/infra/rate-limiter";
 import type { AdminService } from "@/modules/admin/admin.service";
+import type { AvailabilityService } from "@/modules/availability/availability.service";
 import type { DependentService } from "@/modules/dependent/dependent.service";
 import type { InvitationService } from "@/modules/invitation/invitation.service";
 import type { NotificationService } from "@/modules/notification/notification.service";
 import type { PatientService } from "@/modules/patient/patient.service";
+import type { PatientSearchService } from "@/modules/patient/search/search.service";
 import type { PractitionerService } from "@/modules/practitioner/practitioner.service";
+import type { PractitionerSearchService } from "@/modules/practitioner/search/search.service";
 import type { ProfileService } from "@/modules/profile/profile.service";
+import type { ReviewService } from "@/modules/review/review.service";
 
 /** Hono context variables available on every request. */
 export type AppEnv = {
@@ -31,8 +35,12 @@ export type AppServices =
   | ProfileService
   | NotificationService
   | PatientService
+  | PatientSearchService
   | PractitionerService
+  | PractitionerSearchService
   | AdminService
+  | ReviewService
+  | AvailabilityService
   | DependentService
   | InvitationService;
 
