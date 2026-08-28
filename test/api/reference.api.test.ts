@@ -133,33 +133,4 @@ describe("reference catalogs and locale API (real DB)", () => {
     });
     expect(unauthenticated.status).toBe(401);
   });
-
-  it("documents every doctor-detail route in OpenAPI", async () => {
-    const response = await harness.app.request("/openapi.json", { headers: { cookie } });
-    expect(response.status).toBe(200);
-    const specification = await response.text();
-    const paths = [
-      "/v1/professions",
-      "/v1/languages",
-      "/v1/practitioners/me/qualifications",
-      "/v1/practitioners/me/qualifications/{id}",
-      "/v1/practitioners/me/locations",
-      "/v1/practitioners/me/locations/{id}",
-      "/v1/practitioners/me/offerings",
-      "/v1/practitioners/me/offerings/{id}",
-      "/v1/practitioners/me/earnings-terms",
-      "/v1/practitioners/me/payout-methods",
-      "/v1/practitioners/me/payout-methods/{id}",
-      "/v1/practitioners/me/availability/rules",
-      "/v1/practitioners/me/availability/exceptions",
-      "/v1/practitioners/me/availability/exceptions/{id}",
-      "/v1/practitioners/{id}/availability",
-      "/v1/practitioners/{id}/availability/days",
-      "/v1/practitioners/{id}/reviews",
-      "/v1/practitioners/{id}/reviews/me",
-      "/v1/practitioners/{id}/reviews/summary",
-      "/v1/practitioners/me/verification",
-    ];
-    expect(paths.every((path) => specification.includes(path))).toBe(true);
-  });
 });

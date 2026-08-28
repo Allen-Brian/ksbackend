@@ -6,7 +6,8 @@ import { createTestHarness, type TestHarness } from "../support/app-harness";
 const json = <T>(res: Response): Promise<T> => res.json() as Promise<T>;
 const PROFESSION_ID = "00000000-0000-4000-8000-000000000055";
 
-const verifiedPractitioner = async (harness: TestHarness, email: string): Promise<string> => {
+// Registers and submits credentials, but stops short of admin approval.
+const pendingPractitioner = async (harness: TestHarness, email: string): Promise<string> => {
   const cookie = await harness.signUpAndVerify(email, "password12345", "Doc Public");
   const userId = await harness.userIdFor(email);
   const id = (
@@ -135,7 +136,7 @@ describe("practitioner public profile API (real DB)", () => {
   });
 
   it("404s the public profile for a practitioner who isn't verified yet", async () => {
-    const unverifiedId = await verifiedPractitioner(harness, "pub-unverified@example.com");
+    const unverifiedId = await pendingPractitioner(harness, "pub-unverified@example.com");
     const patientCookie = await harness.signUpAndVerify(
       "pub-pat2@example.com",
       "password12345",

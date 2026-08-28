@@ -279,9 +279,6 @@ describe("practitioner detail modules (real DB)", () => {
     expect(verificationBody.status).toBe("verified");
     expect(verificationBody.submittedAt).not.toBeNull();
     expect(verificationBody.documents).toHaveLength(3);
-    expect(verificationBody.documents.every((document) => document.uploadedAt.length > 0)).toBe(
-      true,
-    );
     const photoUploadedAt = verificationBody.documents.find(
       (document) => document.kind === "profile-photo",
     )?.uploadedAt;

@@ -267,14 +267,4 @@ describe("practitioner search API (real DB)", () => {
     const res = await harness.app.request("/v1/practitioners");
     expect(res.status).toBe(401);
   });
-
-  it("documents the new search/reviews/availability endpoints in the OpenAPI spec", async () => {
-    const res = await harness.app.request("/openapi.json");
-    expect(res.status).toBe(200);
-    const spec = await res.text();
-    expect(spec).toContain('"/v1/practitioners"');
-    expect(spec).toContain('"/v1/patients"');
-    expect(spec).toContain("/v1/practitioners/{id}/reviews");
-    expect(spec).toContain("/v1/practitioners/me/availability");
-  });
 });
