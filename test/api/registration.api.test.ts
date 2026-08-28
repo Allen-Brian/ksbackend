@@ -116,6 +116,7 @@ describe("registration flows (real DB)", () => {
       "password12345",
       "Doc Tor",
     );
+    const doctorUserId = await harness.userIdFor("doctor@example.com");
 
     const registered = await harness.post(
       "/v1/practitioners/register",
@@ -136,9 +137,9 @@ describe("registration flows (real DB)", () => {
       {
         cmcRegistrationNumber: "CMC-123456",
         nicNumber: "NIC-778899",
-        cmcCertificateFileKey: "practitioner-documents/doc/cmc",
-        nicFileKey: "practitioner-documents/doc/nic",
-        profilePhotoFileKey: "profile-photos/doc/photo",
+        cmcCertificateFileKey: `practitioner-documents/${doctorUserId}/cmc`,
+        nicFileKey: `practitioner-documents/${doctorUserId}/nic`,
+        profilePhotoFileKey: `profile-photos/${doctorUserId}/photo`,
       },
       docCookie,
     );

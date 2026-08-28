@@ -20,12 +20,12 @@ const register = (harness: TestHarness, cookie: string) =>
     cookie,
   );
 
-const credentials = (over: Record<string, string> = {}) => ({
+const credentials = (ownerId: string, over: Record<string, string> = {}) => ({
   cmcRegistrationNumber: "CMC-100001",
   nicNumber: "NIC-200001",
-  cmcCertificateFileKey: "practitioner-documents/x/cmc",
-  nicFileKey: "practitioner-documents/x/nic",
-  profilePhotoFileKey: "profile-photos/x/photo",
+  cmcCertificateFileKey: `practitioner-documents/${ownerId}/cmc`,
+  nicFileKey: `practitioner-documents/${ownerId}/nic`,
+  profilePhotoFileKey: `profile-photos/${ownerId}/photo`,
   ...over,
 });
 
@@ -34,6 +34,7 @@ const credentials = (over: Record<string, string> = {}) => ({
 describe("practitioner API (real DB)", () => {
   let harness: TestHarness;
   let docCookie: string;
+  let doctorUserId: string;
 
   beforeAll(async () => {
     harness = await createTestHarness();
@@ -41,6 +42,7 @@ describe("practitioner API (real DB)", () => {
       .insert(profession)
       .values({ id: PROFESSION_ID, nameEn: "Doctor", nameFr: "Médecin", prefixHint: "Dr." });
     docCookie = await harness.signUpAndVerify("jane@example.com", "password12345", "Jane Smith");
+    doctorUserId = await harness.userIdFor("jane@example.com");
     expect((await register(harness, docCookie)).status).toBe(201);
   });
 
@@ -68,10 +70,24 @@ describe("practitioner API (real DB)", () => {
     expect((await json<{ error: { code: string } }>(res)).error.code).toBe("VALIDATION_FAILED");
   });
 
+  it("rejects credential file keys owned by another user", async () => {
+    const res = await harness.post(
+      "/v1/practitioners/me/credentials",
+      credentials(doctorUserId, {
+        cmcCertificateFileKey: "practitioner-documents/someone-else/cmc",
+      }),
+      docCookie,
+    );
+    expect(res.status).toBe(422);
+    expect((await json<{ error: { code: string } }>(res)).error.code).toBe("VALIDATION_FAILED");
+  });
+
   it("rejects credentials whose file failed the malware scan with 422 FILE_INFECTED", async () => {
     const res = await harness.post(
       "/v1/practitioners/me/credentials",
-      credentials({ nicFileKey: "practitioner-documents/x/infected-nic" }),
+      credentials(doctorUserId, {
+        nicFileKey: `practitioner-documents/${doctorUserId}/infected-nic`,
+      }),
       docCookie,
     );
     expect(res.status).toBe(422);
@@ -79,11 +95,31 @@ describe("practitioner API (real DB)", () => {
   });
 
   it("accepts clean credentials and moves to pending_verification", async () => {
-    const res = await harness.post("/v1/practitioners/me/credentials", credentials(), docCookie);
+    const res = await harness.post(
+      "/v1/practitioners/me/credentials",
+      credentials(doctorUserId),
+      docCookie,
+    );
     expect(res.status).toBe(200);
     expect((await json<{ verificationStatus: string }>(res)).verificationStatus).toBe(
       "pending_verification",
     );
+  });
+
+  it("rejects unknown language codes and profile photos owned by another user", async () => {
+    const unknownLanguage = await harness.app.request("/v1/practitioners/me", {
+      method: "PATCH",
+      headers: { cookie: docCookie, "content-type": "application/json" },
+      body: JSON.stringify({ languagesSpoken: ["zz"] }),
+    });
+    expect(unknownLanguage.status).toBe(422);
+
+    const foreignPhoto = await harness.app.request("/v1/practitioners/me", {
+      method: "PATCH",
+      headers: { cookie: docCookie, "content-type": "application/json" },
+      body: JSON.stringify({ profilePhotoFileKey: "profile-photos/someone-else/photo" }),
+    });
+    expect(foreignPhoto.status).toBe(422);
   });
 
   it("rejects a duplicate licence number from another account with 409", async () => {
@@ -93,13 +129,10 @@ describe("practitioner API (real DB)", () => {
       "Mark Roe",
     );
     expect((await register(harness, otherCookie)).status).toBe(201);
+    const otherUserId = await harness.userIdFor("mark@example.com");
     const res = await harness.post(
       "/v1/practitioners/me/credentials",
-      credentials({
-        cmcCertificateFileKey: "practitioner-documents/y/cmc",
-        nicFileKey: "practitioner-documents/y/nic",
-        profilePhotoFileKey: "profile-photos/y/photo",
-      }),
+      credentials(otherUserId),
       otherCookie,
     );
     expect(res.status).toBe(409);

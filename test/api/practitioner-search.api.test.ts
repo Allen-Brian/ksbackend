@@ -56,6 +56,7 @@ describe("practitioner search API (real DB)", () => {
 
   const makeDoctor = async (spec: DoctorSpec): Promise<string> => {
     const cookie = await harness.signUpAndVerify(spec.email, "password12345", spec.givenNames);
+    const userId = await harness.userIdFor(spec.email);
     const id = (
       await json<{ id: string }>(
         await harness.post(
@@ -77,9 +78,9 @@ describe("practitioner search API (real DB)", () => {
       {
         cmcRegistrationNumber: `CMC-${spec.email}`,
         nicNumber: `NIC-${spec.email}`,
-        cmcCertificateFileKey: `practitioner-documents/${spec.email}/cmc`,
-        nicFileKey: `practitioner-documents/${spec.email}/nic`,
-        profilePhotoFileKey: `profile-photos/${spec.email}/photo`,
+        cmcCertificateFileKey: `practitioner-documents/${userId}/cmc`,
+        nicFileKey: `practitioner-documents/${userId}/nic`,
+        profilePhotoFileKey: `profile-photos/${userId}/photo`,
       },
       cookie,
     );
@@ -117,7 +118,7 @@ describe("practitioner search API (real DB)", () => {
       givenNames: "Emmanuel",
       specialty: "Cardiology",
       location: "Douala",
-      languagesSpoken: ["French", "English"],
+      languagesSpoken: ["fr", "en"],
       consultationFeeXaf: 15000,
       consultationTypes: ["in_person", "video"],
     });
@@ -127,7 +128,7 @@ describe("practitioner search API (real DB)", () => {
       givenNames: "Marie",
       specialty: "Pediatrics",
       location: "Yaoundé",
-      languagesSpoken: ["French"],
+      languagesSpoken: ["fr"],
       consultationFeeXaf: 10000,
       consultationTypes: ["video"],
     });
@@ -137,7 +138,7 @@ describe("practitioner search API (real DB)", () => {
       givenNames: "Paul",
       specialty: "Cardiology",
       location: "Bafoussam",
-      languagesSpoken: ["English"],
+      languagesSpoken: ["en"],
       consultationFeeXaf: 25000,
       consultationTypes: ["home_visit"],
     });
@@ -176,8 +177,8 @@ describe("practitioner search API (real DB)", () => {
   it("filters by specialty and tolerates typos (trigram fuzzy)", async () => {
     const res = await search(harness, searcher, "?specialty=Cardiollogy");
     const body = await json<SearchBody>(res);
-    const returnedIds = body.data.map((c) => c.id).sort();
-    expect(returnedIds).toEqual([ids.cardioBafoussam, ids.cardioDouala].sort());
+    const returnedIds = body.data.map((c) => c.id).toSorted();
+    expect(returnedIds).toEqual([ids.cardioBafoussam, ids.cardioDouala].toSorted());
   });
 
   it("combines filters (specialty + city) and returns nothing when they don't intersect", async () => {
@@ -194,23 +195,23 @@ describe("practitioner search API (real DB)", () => {
   });
 
   it("filters by language, consultation type, and fee range", async () => {
-    const english = await json<SearchBody>(await search(harness, searcher, "?language=English"));
-    expect(english.data.map((c) => c.id).sort()).toEqual(
-      [ids.cardioDouala, ids.cardioBafoussam].sort(),
+    const english = await json<SearchBody>(await search(harness, searcher, "?language=en"));
+    expect(english.data.map((c) => c.id).toSorted()).toEqual(
+      [ids.cardioDouala, ids.cardioBafoussam].toSorted(),
     );
 
     const video = await json<SearchBody>(
       await search(harness, searcher, "?consultationType=video"),
     );
-    expect(video.data.map((c) => c.id).sort()).toEqual(
-      [ids.cardioDouala, ids.pediatricsYaounde].sort(),
+    expect(video.data.map((c) => c.id).toSorted()).toEqual(
+      [ids.cardioDouala, ids.pediatricsYaounde].toSorted(),
     );
 
     const cheap = await json<SearchBody>(
       await search(harness, searcher, "?feeMin=8000&feeMax=16000"),
     );
-    expect(cheap.data.map((c) => c.id).sort()).toEqual(
-      [ids.cardioDouala, ids.pediatricsYaounde].sort(),
+    expect(cheap.data.map((c) => c.id).toSorted()).toEqual(
+      [ids.cardioDouala, ids.pediatricsYaounde].toSorted(),
     );
   });
 
