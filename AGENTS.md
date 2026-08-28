@@ -37,6 +37,11 @@ Never use `bun test` (Bun's runner) — always `bun run test` (Vitest).
   Effect (reference: `src/http/me.routes.ts`). `src/db/schema/auth.ts` is generated — never hand-edit.
 - Import boundaries (`domain ← modules ← http`, `infra`/`lib` leaves) are machine-enforced by
   `bun run check:structure` — a violation fails the build.
+- **Tautological tests considered harmful.** Every test must be able to fail for the reason it
+  claims to check — never assert a fixture back at itself, a hand-maintained list, or something
+  `tsc` already pins. Ask "what production change turns this red?" before writing an assertion, and
+  delete the ones with no answer (details + smells in
+  [docs/conventions.md → Testing](./docs/conventions.md#tautological-tests-considered-harmful)).
 
 ## Conventions are enforced, not suggested
 

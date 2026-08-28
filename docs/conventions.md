@@ -127,3 +127,29 @@ win.
   Testcontainers) using the shared harness `test/support/testcontainers.ts`. Needs Docker.
 - `bun run test` = unit + api (fast, no Docker). `bun run test:integration` = integration tier.
   Never `bun test` (Bun's runner). Pin `vitest@^3.2` (matches `@effect/vitest`).
+
+### Tautological tests considered harmful
+
+A test is **tautological** when it cannot fail for the reason it claims to check — it restates the
+implementation, the type system, or its own fixture. Before writing an assertion, ask: **what change
+to production code would turn this red?** If the honest answer is "nothing", or "something `tsc`
+would reject first", don't write it. If you find one, delete it or replace it with the invariant it
+was pretending to check.
+
+Smells:
+
+- **Text-grepping a generated artifact.** `expect(spec).toContain("/v1/foo")` against a document
+  generated from the same call that serves `/v1/foo` — with `app.openapi(...)`, registering and
+  documenting a route are one act. `test/api/openapi.api.test.ts` is the honest version: derive the
+  expectation from the router itself, so a route added with `app.get` is caught.
+- **A hand-maintained list checked against itself.** A list literal in the test that only ever
+  changes alongside the code it "covers" is a change-detector, not a test.
+- **Re-deriving the expectation with production logic.** Compute expected values by hand or from the
+  spec — never by calling the code under test, or a copy of it pasted into the test.
+- **Asserting what the types or the contract already pin.** `typeof x === "string"`,
+  `expect(x).toBeDefined()` on a non-nullable, or a field the response schema declares as
+  `z.literal(false)`.
+- **Asserting the fixture.** A fake returns `X`; asserting the caller got `X` tests the fake.
+
+Prefer assertions that name the offender when they fail: `expect(xs.filter(bad)).toEqual([])` beats
+`expect(xs.every(ok)).toBe(true)`, which only ever reports "expected false to be true".
