@@ -14,16 +14,65 @@ import {
   ValidationFailed,
   VerificationStateInvalid,
 } from "@/domain/shared/errors";
-import { Crypto } from "@/infra/crypto";
+import { Crypto, type DecryptError } from "@/infra/crypto";
 import { Geocoder } from "@/infra/geocoding";
 import { IdGenerator } from "@/infra/ids";
 import { FileScanner } from "@/infra/scanner";
 import { FileStorage, type PresignedUpload, type StorageError } from "@/infra/storage";
-import { AvailabilityRepo } from "@/modules/availability/availability.repo";
+import type { PracticeLocation } from "@/domain/location/location";
+import type { ConsultationOffering } from "@/domain/offering/offering";
+import type { Qualification } from "@/domain/qualification/qualification";
+import type { LanguageReference, ProfessionReference } from "@/domain/reference/reference";
+import type { ReviewSummary } from "@/domain/review/review";
+import { AvailabilityService } from "@/modules/availability/availability.service";
+import { LocationRepo } from "@/modules/location/location.repo";
+import { OfferingRepo } from "@/modules/offering/offering.repo";
 import { ProfileRepo } from "@/modules/profile/profile.repo";
+import { QualificationRepo } from "@/modules/qualification/qualification.repo";
+import { ReferenceRepo } from "@/modules/reference/reference.repo";
+import { ReferenceService } from "@/modules/reference/reference.service";
+import { ReviewRepo } from "@/modules/review/review.repo";
 import { PractitionerRepo } from "./practitioner.repo";
 
 type DocumentKind = "cmc-certificate" | "nic" | "profile-photo";
+
+export type PublicPractitionerDetail = {
+  readonly practitioner: Practitioner;
+  readonly photoUrl: string | null;
+  readonly nextAvailableAt: Date | null;
+  readonly profession: ProfessionReference;
+  readonly languages: ReadonlyArray<LanguageReference>;
+  readonly qualifications: ReadonlyArray<Qualification>;
+  readonly locations: ReadonlyArray<PracticeLocation>;
+  readonly offerings: ReadonlyArray<ConsultationOffering>;
+  readonly rating: ReviewSummary;
+  readonly verification: {
+    readonly status: "verified";
+    readonly body: "CMC";
+    readonly registrationNumber: string;
+  };
+  readonly booking: {
+    readonly bookable: boolean;
+    readonly reasons: ReadonlyArray<string>;
+  };
+  readonly canReview: false;
+};
+
+export type PractitionerVerification = {
+  readonly status: Practitioner["verificationStatus"];
+  readonly submittedAt: Date | null;
+  readonly documents: ReadonlyArray<{
+    readonly kind: DocumentKind;
+    readonly url: string;
+    readonly uploadedAt: Date;
+  }>;
+  readonly latestDecision: {
+    readonly decision: "approved" | "rejected";
+    readonly reason: string | null;
+    readonly createdAt: Date;
+  } | null;
+  readonly canResubmit: boolean;
+};
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const DOC_TYPES = [
@@ -60,6 +109,7 @@ export interface PractitionerServiceService {
     Practitioner,
     | ProfileIncomplete
     | VerificationStateInvalid
+    | ValidationFailed
     | FileInfected
     | LicenceAlreadyRegistered
     | SqlError.SqlError
@@ -68,16 +118,16 @@ export interface PractitionerServiceService {
   readonly updatePublicProfile: (
     userId: string,
     patch: PublicProfilePatch,
-  ) => Effect.Effect<Practitioner, NotFound | SqlError.SqlError>;
-  /** A verified practitioner's public profile + presigned photo + next open slot, for patients. */
-  readonly getPublic: (id: string) => Effect.Effect<
-    {
-      readonly practitioner: Practitioner;
-      readonly photoUrl: string | null;
-      readonly nextAvailableAt: Date | null;
-    },
-    NotFound | StorageError | SqlError.SqlError
+  ) => Effect.Effect<Practitioner, NotFound | ValidationFailed | SqlError.SqlError>;
+  readonly getPublic: (
+    id: string,
+  ) => Effect.Effect<
+    PublicPractitionerDetail,
+    NotFound | DecryptError | StorageError | SqlError.SqlError
   >;
+  readonly getVerification: (
+    userId: string,
+  ) => Effect.Effect<PractitionerVerification, NotFound | StorageError | SqlError.SqlError>;
 }
 
 export class PractitionerService extends Context.Tag("PractitionerService")<
@@ -90,7 +140,13 @@ export const PractitionerServiceLive = Layer.effect(
   Effect.gen(function* () {
     const repo = yield* PractitionerRepo;
     const profiles = yield* ProfileRepo;
-    const availability = yield* AvailabilityRepo;
+    const availability = yield* AvailabilityService;
+    const references = yield* ReferenceRepo;
+    const referenceService = yield* ReferenceService;
+    const qualifications = yield* QualificationRepo;
+    const locations = yield* LocationRepo;
+    const offerings = yield* OfferingRepo;
+    const reviews = yield* ReviewRepo;
     const geocoder = yield* Geocoder;
     const ids = yield* IdGenerator;
     const crypto = yield* Crypto;
@@ -145,6 +201,8 @@ export const PractitionerServiceLive = Layer.effect(
                 professionId: input.professionId,
                 prefix: input.prefix ?? null,
                 location: input.location ?? null,
+                consultationTypes:
+                  input.consultationTypes === undefined ? null : [...input.consultationTypes],
                 verificationStatus: "incomplete",
               });
               yield* repo.grantRole(userId, role);
@@ -186,6 +244,31 @@ export const PractitionerServiceLive = Layer.effect(
               new VerificationStateInvalid({ current: existing.verificationStatus }),
             );
           }
+          const ownedFiles = [
+            {
+              field: "cmcCertificateFileKey",
+              key: input.cmcCertificateFileKey,
+              prefix: `practitioner-documents/${userId}/`,
+            },
+            {
+              field: "nicFileKey",
+              key: input.nicFileKey,
+              prefix: `practitioner-documents/${userId}/`,
+            },
+            {
+              field: "profilePhotoFileKey",
+              key: input.profilePhotoFileKey,
+              prefix: `profile-photos/${userId}/`,
+            },
+          ] as const;
+          const unowned = ownedFiles.find((file) => !file.key.startsWith(file.prefix));
+          if (unowned !== undefined) {
+            return yield* Effect.fail(
+              new ValidationFailed({
+                issues: [{ path: unowned.field, message: "File key is not owned by this user." }],
+              }),
+            );
+          }
           const keys = [input.cmcCertificateFileKey, input.nicFileKey, input.profilePhotoFileKey];
           yield* Effect.forEach(
             keys,
@@ -210,13 +293,18 @@ export const PractitionerServiceLive = Layer.effect(
           const now = new Date(yield* Clock.currentTimeMillis);
           const updated = yield* repo.applyCredentials(userId, {
             cmcNumberEncrypted,
+            cmcNumber: input.cmcRegistrationNumber,
             cmcNumberHmac: cmcHmac,
             nicNumberEncrypted,
             nicNumberHmac: nicHmac,
             cmcCertificateFileKey: input.cmcCertificateFileKey,
+            cmcCertificateUploadedAt: now,
             nicFileKey: input.nicFileKey,
+            nicUploadedAt: now,
             profilePhotoFileKey: input.profilePhotoFileKey,
+            profilePhotoUploadedAt: now,
             verificationStatus: "pending_verification",
+            verificationSubmittedAt: now,
             updatedAt: now,
           });
           return updated === undefined
@@ -237,6 +325,21 @@ export const PractitionerServiceLive = Layer.effect(
 
       updatePublicProfile: (userId, patch) =>
         Effect.gen(function* () {
+          if (patch.languagesSpoken !== undefined) {
+            yield* referenceService.validateLanguageCodes(patch.languagesSpoken);
+          }
+          if (
+            patch.profilePhotoFileKey !== undefined &&
+            !patch.profilePhotoFileKey.startsWith(`profile-photos/${userId}/`)
+          ) {
+            return yield* Effect.fail(
+              new ValidationFailed({
+                issues: [
+                  { path: "profilePhotoFileKey", message: "Photo key is not owned by this user." },
+                ],
+              }),
+            );
+          }
           const now = new Date(yield* Clock.currentTimeMillis);
           const updated = yield* repo.updatePublic(userId, patch, now);
           if (updated === undefined) {
@@ -256,13 +359,87 @@ export const PractitionerServiceLive = Layer.effect(
           if (found === undefined || found.verificationStatus !== "verified") {
             return yield* Effect.fail(new NotFound({ resource: "Practitioner", id }));
           }
+          const registrationNumber =
+            found.cmcNumber ??
+            (yield* Effect.gen(function* () {
+              const withSecrets = yield* repo.findByIdWithSecrets(id);
+              if (withSecrets?.cmcNumberEncrypted === null || withSecrets === undefined) {
+                return yield* Effect.fail(new NotFound({ resource: "Practitioner", id }));
+              }
+              return yield* crypto.decrypt(withSecrets.cmcNumberEncrypted);
+            }));
           const photoUrl =
             found.profilePhotoFileKey === null
               ? null
               : yield* storage.presignDownload(found.profilePhotoFileKey);
-          const now = new Date(yield* Clock.currentTimeMillis);
-          const nextAvailableAt = yield* availability.nextAvailableAt(found.id, now);
-          return { practitioner: found, photoUrl, nextAvailableAt };
+          const detail = yield* Effect.all(
+            {
+              profession: references.findProfession(found.professionId),
+              languages: references.findLanguages(found.languagesSpoken ?? []),
+              qualifications: qualifications.list(found.id),
+              locations: locations.list(found.id),
+              offerings: offerings.list(found.id, true),
+              rating: reviews.summary(found.id),
+              nextAvailableAt: availability.nextAvailableAt(found.id),
+            },
+            { concurrency: 7 },
+          );
+          if (detail.profession === undefined) {
+            return yield* Effect.fail(new NotFound({ resource: "Profession" }));
+          }
+          const reasons = [
+            ...(detail.offerings.length === 0 ? ["NO_ACTIVE_OFFERINGS"] : []),
+            ...(detail.nextAvailableAt === null ? ["NO_AVAILABILITY"] : []),
+          ];
+          return {
+            practitioner: found,
+            photoUrl,
+            nextAvailableAt: detail.nextAvailableAt,
+            profession: detail.profession,
+            languages: detail.languages,
+            qualifications: detail.qualifications,
+            locations: detail.locations,
+            offerings: detail.offerings,
+            rating: detail.rating,
+            verification: { status: "verified", body: "CMC", registrationNumber },
+            booking: { bookable: reasons.length === 0, reasons },
+            canReview: false,
+          };
+        }),
+
+      getVerification: (userId) =>
+        Effect.gen(function* () {
+          const found = yield* repo.findByUserId(userId);
+          if (found === undefined) {
+            return yield* Effect.fail(new NotFound({ resource: "Practitioner profile" }));
+          }
+          const keys: ReadonlyArray<readonly [DocumentKind, string | null, Date | null]> = [
+            ["cmc-certificate", found.cmcCertificateFileKey, found.cmcCertificateUploadedAt],
+            ["nic", found.nicFileKey, found.nicUploadedAt],
+            ["profile-photo", found.profilePhotoFileKey, found.profilePhotoUploadedAt],
+          ];
+          const documents = yield* Effect.forEach(
+            keys.filter((entry) => entry[1] !== null),
+            ([kind, key, uploadedAt]) =>
+              key === null
+                ? Effect.dieMessage("filtered document key was null")
+                : storage.presignDownload(key).pipe(
+                    Effect.map((url) => ({
+                      kind,
+                      url,
+                      uploadedAt: uploadedAt ?? found.verificationSubmittedAt ?? found.updatedAt,
+                    })),
+                  ),
+            { concurrency: 3 },
+          );
+          return {
+            status: found.verificationStatus,
+            submittedAt: found.verificationSubmittedAt,
+            documents,
+            latestDecision: (yield* repo.latestVerificationDecision(found.id)) ?? null,
+            canResubmit:
+              found.verificationStatus === "incomplete" || found.verificationStatus === "rejected",
+          };
         }),
     } satisfies PractitionerServiceService;
   }),

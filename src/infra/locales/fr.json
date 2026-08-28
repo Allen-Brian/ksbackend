@@ -3,6 +3,7 @@
   "errors.ROUTE_NOT_FOUND": "Le point de terminaison demandé est introuvable.",
   "errors.UNAUTHORIZED": "Authentification requise.",
   "errors.FORBIDDEN": "Vous n'avez pas accès à cette ressource.",
+  "errors.REVIEW_NOT_ELIGIBLE": "Vous pourrez évaluer ce praticien après avoir terminé un rendez-vous.",
   "errors.CONFLICT": "{resource} existe déjà.",
   "errors.VALIDATION_FAILED": "La validation de la requête a échoué.",
   "errors.PAYLOAD_TOO_LARGE": "Le corps de la requête dépasse la limite de 1 Mo.",

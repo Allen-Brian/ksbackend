@@ -41,10 +41,17 @@ const toDomain = (p: Row, base: ProfileRow): Practitioner => ({
   ratingCount: p.ratingCount,
   latitude: p.latitude,
   longitude: p.longitude,
+  cmcNumber: p.cmcNumber,
   cmcCertificateFileKey: p.cmcCertificateFileKey,
+  cmcCertificateUploadedAt: p.cmcCertificateUploadedAt,
   nicFileKey: p.nicFileKey,
+  nicUploadedAt: p.nicUploadedAt,
   profilePhotoFileKey: p.profilePhotoFileKey,
+  profilePhotoUploadedAt: p.profilePhotoUploadedAt,
   verificationStatus: p.verificationStatus,
+  verificationSubmittedAt: p.verificationSubmittedAt,
+  createdAt: p.createdAt,
+  updatedAt: p.updatedAt,
 });
 
 export type PractitionerWithSecrets = {
@@ -53,15 +60,26 @@ export type PractitionerWithSecrets = {
   readonly nicNumberEncrypted: string | null;
 };
 
+export type VerificationDecisionRecord = {
+  readonly decision: "approved" | "rejected";
+  readonly reason: string | null;
+  readonly createdAt: Date;
+};
+
 export type CredentialPatch = {
   readonly cmcNumberEncrypted: string;
   readonly cmcNumberHmac: string;
+  readonly cmcNumber: string;
   readonly nicNumberEncrypted: string;
   readonly nicNumberHmac: string;
   readonly cmcCertificateFileKey: string;
+  readonly cmcCertificateUploadedAt: Date;
   readonly nicFileKey: string;
+  readonly nicUploadedAt: Date;
   readonly profilePhotoFileKey: string;
+  readonly profilePhotoUploadedAt: Date;
   readonly verificationStatus: VerificationStatus;
+  readonly verificationSubmittedAt: Date;
   readonly updatedAt: Date;
 };
 
@@ -118,6 +136,9 @@ export interface PractitionerRepoService {
     { readonly email: string; readonly locale: Locale } | undefined,
     SqlError.SqlError
   >;
+  readonly latestVerificationDecision: (
+    practitionerId: string,
+  ) => Effect.Effect<VerificationDecisionRecord | undefined, SqlError.SqlError>;
 }
 
 export class PractitionerRepo extends Context.Tag("PractitionerRepo")<
@@ -207,6 +228,7 @@ export const PractitionerRepoLive = Layer.effect(
             ...(patch.bio !== undefined && { bio: patch.bio }),
             ...(patch.languagesSpoken !== undefined && {
               languagesSpoken: [...patch.languagesSpoken],
+              languagesLegacy: false,
             }),
             ...(patch.yearsExperience !== undefined && { yearsExperience: patch.yearsExperience }),
             ...(patch.consultationFeeXaf !== undefined && {
@@ -214,6 +236,10 @@ export const PractitionerRepoLive = Layer.effect(
             }),
             ...(patch.consultationTypes !== undefined && {
               consultationTypes: [...patch.consultationTypes],
+            }),
+            ...(patch.profilePhotoFileKey !== undefined && {
+              profilePhotoFileKey: patch.profilePhotoFileKey,
+              profilePhotoUploadedAt: updatedAt,
             }),
             updatedAt,
           })
@@ -303,6 +329,19 @@ export const PractitionerRepoLive = Layer.effect(
               return { email: row.email, locale };
             }),
           ),
+
+      latestVerificationDecision: (practitionerId) =>
+        db
+          .select({
+            decision: verificationReview.decision,
+            reason: verificationReview.reason,
+            createdAt: verificationReview.createdAt,
+          })
+          .from(verificationReview)
+          .where(eq(verificationReview.practitionerProfileId, practitionerId))
+          .orderBy(desc(verificationReview.id))
+          .limit(1)
+          .pipe(Effect.map((rows) => rows[0])),
     } satisfies PractitionerRepoService;
   }),
 );

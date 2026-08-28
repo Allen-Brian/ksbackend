@@ -3,9 +3,15 @@ import { Effect } from "effect";
 import type { Review } from "@/domain/review/review";
 import type { AppEnv, AppRuntime } from "@/http/app-env";
 import { makeRun } from "@/http/run";
-import { CursorQuery, ErrorResponse } from "@/http/schemas";
+import { ErrorResponse } from "@/http/schemas";
 import { CurrentUser } from "@/infra/auth";
-import { ReviewResponse, ReviewsPage, UpsertReviewBody } from "./review.contract";
+import {
+  ReviewListQuery,
+  ReviewResponse,
+  ReviewSummaryResponse,
+  ReviewsPage,
+  UpsertReviewBody,
+} from "./review.contract";
 import { ReviewService } from "./review.service";
 
 const jsonBody = <T>(schema: T) => ({ content: { "application/json": { schema } } });
@@ -21,6 +27,7 @@ const toResponse = (r: Review) => ({
   id: r.id,
   practitionerProfileId: r.practitionerProfileId,
   reviewerName: r.reviewerName,
+  verifiedAppointment: r.verifiedAppointment,
   rating: r.rating,
   comment: r.comment,
   createdAt: r.createdAt.toISOString(),
@@ -35,8 +42,8 @@ const upsert = createRoute({
   description: [
     "Submit YOUR rating (1–5) and optional comment for a verified practitioner. You have at most",
     "one active review per practitioner: a second POST updates it (returns `200`) rather than",
-    "creating a duplicate (first submission returns `201`). Requires the `patient` role (`403`",
-    "otherwise); an unknown or unverified practitioner returns `404`. The practitioner's average",
+    "creating a duplicate (first submission returns `201`). Requires the `patient` role and a",
+    "completed appointment with this practitioner (`403 REVIEW_NOT_ELIGIBLE` otherwise). The practitioner's average",
     "rating and review count update atomically.",
   ].join(" "),
   request: { params: IdParam, body: jsonBody(UpsertReviewBody) },
@@ -59,11 +66,37 @@ const list = createRoute({
     "A cursor-paginated list of a verified practitioner's patient reviews (newest first), each with",
     "the reviewer's given name, rating, and comment. Unknown/unverified practitioner → `404`.",
   ].join(" "),
-  request: { params: IdParam, query: CursorQuery },
+  request: { params: IdParam, query: ReviewListQuery },
   responses: {
     200: { ...jsonBody(ReviewsPage), description: "A page of reviews." },
     401: { ...jsonBody(ErrorResponse), description: "No valid session." },
     404: { ...jsonBody(ErrorResponse), description: "No verified practitioner with that id." },
+  },
+});
+
+const getMine = createRoute({
+  method: "get",
+  path: "/v1/practitioners/{id}/reviews/me",
+  tags: ["Reviews"],
+  summary: "Get your review of a practitioner",
+  request: { params: IdParam },
+  responses: {
+    200: { ...jsonBody(ReviewResponse), description: "Your active review." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "No active review." },
+  },
+});
+
+const summary = createRoute({
+  method: "get",
+  path: "/v1/practitioners/{id}/reviews/summary",
+  tags: ["Reviews"],
+  summary: "Get review aggregate and star distribution",
+  request: { params: IdParam },
+  responses: {
+    200: { ...jsonBody(ReviewSummaryResponse), description: "Review summary." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "Unknown or unverified practitioner." },
   },
 });
 
@@ -105,16 +138,54 @@ export const registerReviewRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRunti
   );
 
   app.openapi(list, (c) => {
-    const { limit, cursor } = c.req.valid("query");
+    const { limit, cursor, rating, sort } = c.req.valid("query");
     return runAuth(
       c,
       Effect.gen(function* () {
         const service = yield* ReviewService;
-        const page = yield* service.listReviews(c.req.valid("param").id, limit, cursor);
+        const page = yield* service.listReviews(
+          c.req.valid("param").id,
+          limit,
+          cursor,
+          rating,
+          sort,
+        );
         return c.json({ data: page.data.map(toResponse), meta: page.meta }, 200);
       }),
     );
   });
+
+  app.openapi(getMine, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* ReviewService;
+        return c.json(
+          toResponse(yield* service.getOwnReview(user.id, c.req.valid("param").id)),
+          200,
+        );
+      }),
+    ),
+  );
+
+  app.openapi(summary, (c) =>
+    runAuth(
+      c,
+      Effect.flatMap(ReviewService, (service) =>
+        service.summary(c.req.valid("param").id).pipe(
+          Effect.map((value) => {
+            c.header("Cache-Control", "private, max-age=60");
+            c.header(
+              "ETag",
+              `W/"${value.average}-${value.count}-${Object.values(value.distribution).join("-")}"`,
+            );
+            return c.json(value, 200);
+          }),
+        ),
+      ),
+    ),
+  );
 
   app.openapi(remove, (c) =>
     runAuth(

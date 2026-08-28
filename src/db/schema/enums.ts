@@ -54,3 +54,22 @@ export const consultationTypeEnum = pgEnum("consultation_type", [
   "video",
   "home_visit",
 ]);
+
+export const qualificationKindEnum = pgEnum("qualification_kind", [
+  "degree",
+  "specialisation",
+  "certification",
+  "training",
+  "award",
+]);
+
+export const payoutMethodKindEnum = pgEnum("payout_method_kind", [
+  "mtn_momo",
+  "orange_money",
+  "bank",
+]);
+
+export const availabilityExceptionKindEnum = pgEnum("availability_exception_kind", [
+  "blocked",
+  "extra",
+]);

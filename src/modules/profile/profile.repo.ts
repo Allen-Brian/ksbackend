@@ -3,6 +3,7 @@ import * as PgDrizzle from "@effect/sql-drizzle/Pg";
 import { eq, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { profile } from "@/db/schema/profile";
+import { user } from "@/db/schema/auth";
 import type { Profile, ProfilePatch } from "@/domain/profile/profile";
 
 type Row = typeof profile.$inferSelect;
@@ -31,6 +32,10 @@ export interface ProfileRepoService {
     values: ProfilePatch,
     updatedAt: Date,
   ) => Effect.Effect<Profile | undefined, SqlError.SqlError>;
+  readonly updateLocale: (
+    userId: string,
+    locale: "en" | "fr",
+  ) => Effect.Effect<boolean, SqlError.SqlError>;
 }
 
 export class ProfileRepo extends Context.Tag("ProfileRepo")<ProfileRepo, ProfileRepoService>() {}
@@ -94,6 +99,13 @@ export const ProfileRepoLive = Layer.effect(
           .where(eq(profile.userId, userId))
           .returning()
           .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
+      updateLocale: (userId, locale) =>
+        db
+          .update(user)
+          .set({ locale })
+          .where(eq(user.id, userId))
+          .returning({ id: user.id })
+          .pipe(Effect.map((rows) => rows.length > 0)),
     };
   }),
 );

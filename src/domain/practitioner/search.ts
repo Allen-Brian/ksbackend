@@ -53,12 +53,16 @@ export type PractitionerSearchCriteria = {
 export type PractitionerCardRow = {
   readonly id: string;
   readonly professionId: string;
+  readonly professionNameEn: string;
+  readonly professionNameFr: string;
+  readonly professionPrefixHint: string | null;
   readonly prefix: string | null;
   readonly surname: string;
   readonly givenNames: string;
   readonly specialty: string | null;
   readonly location: string | null;
   readonly consultationTypes: ReadonlyArray<ConsultationType> | null;
+  readonly languagesSpoken: ReadonlyArray<string> | null;
   readonly consultationFeeXaf: number | null;
   readonly ratingAverage: number;
   readonly ratingCount: number;

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
-import { availabilitySlotStatusEnum } from "./enums";
+import { availabilitySlotStatusEnum, consultationTypeEnum } from "./enums";
+import { practiceLocation } from "./practice-location";
 import { practitionerProfile } from "./practitioner-profile";
 
 // A bookable time slot a practitioner publishes. `status` open|booked|cancelled is
@@ -16,6 +17,8 @@ export const availabilitySlot = pgTable(
       .references(() => practitionerProfile.id, { onDelete: "cascade" }),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    consultationTypes: consultationTypeEnum("consultation_types").array().notNull().default([]),
+    locationId: uuid("location_id").references(() => practiceLocation.id),
     status: availabilitySlotStatusEnum("status").notNull().default("open"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

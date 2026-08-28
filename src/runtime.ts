@@ -17,14 +17,24 @@ import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
 import { InvitationRepoLive } from "./modules/invitation/invitation.repo";
 import { InvitationServiceLive } from "./modules/invitation/invitation.service";
+import { LocationRepoLive } from "./modules/location/location.repo";
+import { LocationServiceLive } from "./modules/location/location.service";
 import { NotificationRepoLive } from "./modules/notification/notification.repo";
 import { NotificationServiceLive } from "./modules/notification/notification.service";
+import { OfferingRepoLive } from "./modules/offering/offering.repo";
+import { OfferingServiceLive } from "./modules/offering/offering.service";
 import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
 import { PatientSearchRepoLive } from "./modules/patient/search/search.repo";
 import { PatientSearchServiceLive } from "./modules/patient/search/search.service";
 import { ProfileRepoLive } from "./modules/profile/profile.repo";
 import { ProfileServiceLive } from "./modules/profile/profile.service";
+import { PayoutRepoLive } from "./modules/payout/payout.repo";
+import { PayoutServiceLive } from "./modules/payout/payout.service";
+import { QualificationRepoLive } from "./modules/qualification/qualification.repo";
+import { QualificationServiceLive } from "./modules/qualification/qualification.service";
+import { ReferenceRepoLive } from "./modules/reference/reference.repo";
+import { ReferenceServiceLive } from "./modules/reference/reference.service";
 import { ReviewRepoLive } from "./modules/review/review.repo";
 import { ReviewServiceLive } from "./modules/review/review.service";
 import { PractitionerRepoLive } from "./modules/practitioner/practitioner.repo";
@@ -68,6 +78,31 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
   const invitationRepo = InvitationRepoLive.pipe(Layer.provide(database));
   const availabilityRepo = AvailabilityRepoLive.pipe(Layer.provide(database));
+  const referenceRepo = ReferenceRepoLive.pipe(Layer.provide(database));
+  const qualificationRepo = QualificationRepoLive.pipe(Layer.provide(database));
+  const locationRepo = LocationRepoLive.pipe(Layer.provide(database));
+  const offeringRepo = OfferingRepoLive.pipe(Layer.provide(database));
+  const payoutRepo = PayoutRepoLive.pipe(Layer.provide(database));
+  const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
+
+  const reference = ReferenceServiceLive.pipe(Layer.provide(referenceRepo));
+  const qualification = QualificationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(qualificationRepo, practitionerRepo, idGen)),
+  );
+  const location = LocationServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(locationRepo, practitionerRepo, idGen, infra.geocoder, database)),
+  );
+  const offering = OfferingServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(offeringRepo, practitionerRepo, idGen, database)),
+  );
+  const payout = PayoutServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(payoutRepo, practitionerRepo, idGen, crypto, database)),
+  );
+  const availability = AvailabilityServiceLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(availabilityRepo, practitionerRepo, locationRepo, idGen, database),
+    ),
+  );
 
   const profile = ProfileServiceLive.pipe(
     Layer.provide(Layer.mergeAll(profileRepo, idGen, infra.storage)),
@@ -87,7 +122,13 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
       Layer.mergeAll(
         practitionerRepo,
         profileRepo,
-        availabilityRepo,
+        availability,
+        referenceRepo,
+        reference,
+        qualificationRepo,
+        locationRepo,
+        offeringRepo,
+        reviewRepo,
         idGen,
         crypto,
         infra.scanner,
@@ -99,7 +140,9 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   );
   const practitionerSearchRepo = PractitionerSearchRepoLive.pipe(Layer.provide(database));
   const practitionerSearch = PractitionerSearchServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(practitionerSearchRepo, infra.storage)),
+    Layer.provide(
+      Layer.mergeAll(practitionerSearchRepo, referenceRepo, availability, infra.storage),
+    ),
   );
   const admin = AdminServiceLive.pipe(
     Layer.provide(
@@ -114,12 +157,8 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
       ),
     ),
   );
-  const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
   const review = ReviewServiceLive.pipe(
     Layer.provide(Layer.mergeAll(reviewRepo, practitionerRepo, idGen, database)),
-  );
-  const availability = AvailabilityServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(availabilityRepo, idGen, database)),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
   const invitation = InvitationServiceLive.pipe(
@@ -137,6 +176,11 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     admin,
     review,
     availability,
+    reference,
+    qualification,
+    location,
+    offering,
+    payout,
     dependent,
     invitation,
     health,

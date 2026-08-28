@@ -1,6 +1,6 @@
 import { SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
-import { ValidationFailed } from "@/domain/shared/errors";
+import { NotFound, ValidationFailed } from "@/domain/shared/errors";
 import { CONSULTATION_TYPES, type ConsultationType } from "@/domain/practitioner/practitioner";
 import {
   type PractitionerSearchCriteria,
@@ -12,6 +12,9 @@ import {
 import { FileStorage, type StorageError } from "@/infra/storage";
 import { offsetMeta, offsetOf, type OffsetPage } from "@/lib/offset";
 import { PractitionerSearchRepo } from "./search.repo";
+import { ReferenceRepo } from "@/modules/reference/reference.repo";
+import { AvailabilityService } from "@/modules/availability/availability.service";
+import type { LanguageReference, ProfessionReference } from "@/domain/reference/reference";
 
 /** The validated query the route hands to the service. */
 export type PractitionerSearchParams = {
@@ -35,6 +38,8 @@ export type PractitionerSearchParams = {
 export type PractitionerSearchItem = {
   readonly id: string;
   readonly professionId: string;
+  readonly profession: ProfessionReference;
+  readonly languages: ReadonlyArray<LanguageReference>;
   readonly prefix: string | null;
   readonly surname: string;
   readonly givenNames: string;
@@ -54,7 +59,7 @@ export interface PractitionerSearchServiceService {
     params: PractitionerSearchParams,
   ) => Effect.Effect<
     OffsetPage<PractitionerSearchItem>,
-    ValidationFailed | StorageError | SqlError.SqlError
+    ValidationFailed | NotFound | StorageError | SqlError.SqlError
   >;
 }
 
@@ -64,6 +69,7 @@ export class PractitionerSearchService extends Context.Tag("PractitionerSearchSe
 >() {}
 
 type Issue = { readonly path: string; readonly message: string };
+const AVAILABILITY_SORT_CANDIDATE_LIMIT = 250;
 
 // Parse the comma-separated `consultationType` filter, collecting any unknown value
 // as a validation issue rather than throwing.
@@ -91,6 +97,8 @@ export const PractitionerSearchServiceLive = Layer.effect(
   Effect.gen(function* () {
     const repo = yield* PractitionerSearchRepo;
     const storage = yield* FileStorage;
+    const references = yield* ReferenceRepo;
+    const availability = yield* AvailabilityService;
 
     return {
       search: (params) =>
@@ -137,15 +145,30 @@ export const PractitionerSearchServiceLive = Layer.effect(
           const sort: PractitionerSort = { field: params.sort, direction };
           const now = new Date(yield* Clock.currentTimeMillis);
 
+          const requestedOffset = offsetOf(params.page, params.pageSize);
+          const availabilitySort = params.sort === "availability";
           const { rows, total } = yield* repo.search(
             criteria,
             sort,
             {
-              limit: params.pageSize,
-              offset: offsetOf(params.page, params.pageSize),
+              limit: availabilitySort ? AVAILABILITY_SORT_CANDIDATE_LIMIT + 1 : params.pageSize,
+              offset: availabilitySort ? 0 : requestedOffset,
             },
             now,
           );
+          if (availabilitySort && total > AVAILABILITY_SORT_CANDIDATE_LIMIT) {
+            return yield* Effect.fail(
+              new ValidationFailed({
+                issues: [
+                  {
+                    path: "sort",
+                    message:
+                      "Availability sorting requires filters that narrow the result to 250 practitioners or fewer.",
+                  },
+                ],
+              }),
+            );
+          }
 
           // Presigning is a local signing op (no network), but bound the fan-out anyway.
           const data = yield* Effect.forEach(
@@ -155,29 +178,56 @@ export const PractitionerSearchServiceLive = Layer.effect(
                 r.profilePhotoFileKey === null
                   ? Effect.succeed(null)
                   : storage.presignDownload(r.profilePhotoFileKey);
-              return photoUrl.pipe(
-                Effect.map((url): PractitionerSearchItem => ({
-                  id: r.id,
-                  professionId: r.professionId,
-                  prefix: r.prefix,
-                  surname: r.surname,
-                  givenNames: r.givenNames,
-                  specialty: r.specialty,
-                  location: r.location,
-                  consultationTypes: r.consultationTypes,
-                  consultationFeeXaf: r.consultationFeeXaf,
-                  ratingAverage: r.ratingAverage,
-                  ratingCount: r.ratingCount,
-                  nextAvailableAt: r.nextAvailableAt,
-                  distanceKm: r.distanceKm,
-                  photoUrl: url,
-                })),
+              return Effect.all({
+                photoUrl,
+                languages: references.findLanguages(r.languagesSpoken ?? []),
+                nextAvailableAt: availability.nextAvailableAt(r.id),
+              }).pipe(
+                Effect.map(
+                  ({ photoUrl: url, languages, nextAvailableAt }): PractitionerSearchItem => ({
+                    id: r.id,
+                    professionId: r.professionId,
+                    profession: {
+                      id: r.professionId,
+                      nameEn: r.professionNameEn,
+                      nameFr: r.professionNameFr,
+                      prefixHint: r.professionPrefixHint,
+                    },
+                    languages,
+                    prefix: r.prefix,
+                    surname: r.surname,
+                    givenNames: r.givenNames,
+                    specialty: r.specialty,
+                    location: r.location,
+                    consultationTypes: r.consultationTypes,
+                    consultationFeeXaf: r.consultationFeeXaf,
+                    ratingAverage: r.ratingAverage,
+                    ratingCount: r.ratingCount,
+                    nextAvailableAt,
+                    distanceKm: r.distanceKm,
+                    photoUrl: url,
+                  }),
+                ),
               );
             },
             { concurrency: 10 },
           );
 
-          return { data, meta: offsetMeta(params.page, params.pageSize, total, data.length) };
+          const pageData = availabilitySort
+            ? data
+                .toSorted((left, right) => {
+                  if (left.nextAvailableAt === null) return right.nextAvailableAt === null ? 0 : 1;
+                  if (right.nextAvailableAt === null) return -1;
+                  const difference =
+                    left.nextAvailableAt.getTime() - right.nextAvailableAt.getTime();
+                  return direction === "asc" ? difference : -difference;
+                })
+                .slice(requestedOffset, requestedOffset + params.pageSize)
+            : data;
+          return {
+            data: pageData,
+            meta: offsetMeta(params.page, params.pageSize, total, pageData.length),
+          };
         }),
     } satisfies PractitionerSearchServiceService;
   }),

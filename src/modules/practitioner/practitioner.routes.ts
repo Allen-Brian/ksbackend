@@ -7,6 +7,7 @@ import { ErrorResponse } from "@/http/schemas";
 import { CurrentUser } from "@/infra/auth";
 import {
   PractitionerResponse,
+  PractitionerVerificationResponse,
   PresignDocumentBody,
   PresignDocumentResponse,
   PublicPractitionerResponse,
@@ -14,9 +15,27 @@ import {
   SubmitCredentialsBody,
   UpdatePublicProfileBody,
 } from "./practitioner.contract";
-import { PractitionerService } from "./practitioner.service";
+import { PractitionerService, type PublicPractitionerDetail } from "./practitioner.service";
 
 const jsonBody = <T>(schema: T) => ({ content: { "application/json": { schema } } });
+
+const aggregateEtag = (detail: PublicPractitionerDetail): string => {
+  const value = JSON.stringify({
+    practitionerUpdatedAt: detail.practitioner.updatedAt,
+    languages: detail.languages,
+    qualifications: detail.qualifications,
+    locations: detail.locations,
+    offerings: detail.offerings,
+    rating: detail.rating,
+    nextAvailableAt: detail.nextAvailableAt,
+  });
+  let hash = 2_166_136_261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return `W/"${(hash >>> 0).toString(16)}"`;
+};
 
 const publicFields = (p: Practitioner) => ({
   specialty: p.specialty,
@@ -44,20 +63,52 @@ const toResponse = (p: Practitioner) => ({
   verificationStatus: p.verificationStatus,
 });
 
-const toPublicResponse = (
-  p: Practitioner,
-  photoUrl: string | null,
-  nextAvailableAt: Date | null,
-) => ({
-  id: p.id,
-  professionId: p.professionId,
-  prefix: p.prefix,
-  surname: p.surname,
-  givenNames: p.givenNames,
-  location: p.location,
-  ...publicFields(p),
-  photoUrl,
-  nextAvailableAt: nextAvailableAt === null ? null : nextAvailableAt.toISOString(),
+const toPublicResponse = (detail: PublicPractitionerDetail) => ({
+  ...(() => {
+    const p = detail.practitioner;
+    return {
+      id: p.id,
+      professionId: p.professionId,
+      profession: detail.profession,
+      prefix: p.prefix,
+      surname: p.surname,
+      givenNames: p.givenNames,
+      location: p.location,
+      ...publicFields(p),
+      memberSince: p.createdAt.toISOString(),
+      languages: [...detail.languages],
+      qualifications: detail.qualifications.map((item) => ({
+        ...item,
+        verifiedAt: item.verifiedAt?.toISOString() ?? null,
+      })),
+      locations: detail.locations.map((item) => ({
+        id: item.id,
+        label: item.label,
+        addressLine1: item.addressLine1,
+        addressLine2: item.addressLine2,
+        city: item.city,
+        region: item.region,
+        country: item.country,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        consultationTypes: [...item.consultationTypes],
+        isPrimary: item.isPrimary,
+      })),
+      offerings: detail.offerings.map((item) => ({
+        id: item.id,
+        consultationType: item.consultationType,
+        durationMin: item.durationMin,
+        priceXaf: item.priceXaf,
+        active: item.active,
+      })),
+      rating: detail.rating,
+      verification: detail.verification,
+      booking: { ...detail.booking, reasons: [...detail.booking.reasons] },
+      canReview: detail.canReview,
+      photoUrl: detail.photoUrl,
+      nextAvailableAt: detail.nextAvailableAt?.toISOString() ?? null,
+    };
+  })(),
 });
 
 const register = createRoute({
@@ -187,7 +238,8 @@ const getPublic = createRoute({
     "The PUBLIC, bookable view of a practitioner — what patients see when browsing. Returns",
     "VERIFIED practitioners only: an unverified practitioner and an unknown id both return `404`",
     "(treat them the same in the UI — don't reveal that the id exists). Deliberately EXCLUDES",
-    "phone, dateOfBirth, sex, and the CMC/NIC identifiers. `photoUrl` is a presigned download URL",
+    "phone, dateOfBirth, sex, and the NIC identifier. The public CMC registration number is",
+    "included as verification evidence. `photoUrl` is a presigned download URL",
     "for the profile photo (nullable).",
   ].join(" "),
   request: {
@@ -211,6 +263,18 @@ const getPublic = createRoute({
   },
 });
 
+const getVerification = createRoute({
+  method: "get",
+  path: "/v1/practitioners/me/verification",
+  tags: ["Practitioners"],
+  summary: "Get your verification submission and latest decision",
+  responses: {
+    200: { ...jsonBody(PractitionerVerificationResponse), description: "Verification status." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "No practitioner profile." },
+  },
+});
+
 export const registerPractitionerRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRuntime): void => {
   const { runAuth } = makeRun(runtime);
 
@@ -230,6 +294,7 @@ export const registerPractitionerRoutes = (app: OpenAPIHono<AppEnv>, runtime: Ap
           dateOfBirth: body.dateOfBirth,
           sex: body.sex,
           location: body.location,
+          consultationTypes: body.consultationTypes,
           consentVersion: body.consentVersion,
         });
         return c.json(toResponse(created), 201);
@@ -291,10 +356,39 @@ export const registerPractitionerRoutes = (app: OpenAPIHono<AppEnv>, runtime: Ap
       c,
       Effect.gen(function* () {
         const service = yield* PractitionerService;
-        const { practitioner, photoUrl, nextAvailableAt } = yield* service.getPublic(
-          c.req.valid("param").id,
+        const detail = yield* service.getPublic(c.req.valid("param").id);
+        c.header("Cache-Control", "private, max-age=60");
+        c.header("ETag", aggregateEtag(detail));
+        return c.json(toPublicResponse(detail), 200);
+      }),
+    ),
+  );
+
+  app.openapi(getVerification, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* PractitionerService;
+        const value = yield* service.getVerification(user.id);
+        return c.json(
+          {
+            ...value,
+            documents: value.documents.map((document) => ({
+              ...document,
+              uploadedAt: document.uploadedAt.toISOString(),
+            })),
+            submittedAt: value.submittedAt?.toISOString() ?? null,
+            latestDecision:
+              value.latestDecision === null
+                ? null
+                : {
+                    ...value.latestDecision,
+                    createdAt: value.latestDecision.createdAt.toISOString(),
+                  },
+          },
+          200,
         );
-        return c.json(toPublicResponse(practitioner, photoUrl, nextAvailableAt), 200);
       }),
     ),
   );
