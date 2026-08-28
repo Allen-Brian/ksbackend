@@ -44,6 +44,7 @@ export const RegisterPractitionerBody = z
       description: "City / region where the practitioner is based.",
       example: "Douala",
     }),
+    consultationTypes: z.array(z.enum(CONSULTATION_TYPES)).max(3).optional(),
     consentVersion: z
       .string()
       .min(1)
@@ -241,6 +242,9 @@ export const UpdatePublicProfileBody = z
         description: "How the practitioner consults (any of in_person, video, home_visit).",
         example: ["in_person", "video"],
       }),
+    profilePhotoFileKey: z.string().min(1).max(500).optional().openapi({
+      description: "Owned profile-photo storage key returned by the presign endpoint.",
+    }),
   })
   .openapi("UpdatePublicProfile");
 
@@ -255,6 +259,12 @@ export const PublicPractitionerResponse = z
       description: "UUID of the profession from the professions catalog.",
       example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
     }),
+    profession: z.object({
+      id: z.uuid(),
+      nameEn: z.string(),
+      nameFr: z.string(),
+      prefixHint: z.string().nullable(),
+    }),
     prefix: z
       .string()
       .nullable()
@@ -263,6 +273,69 @@ export const PublicPractitionerResponse = z
     givenNames: z.string().openapi({ description: "Given name(s).", example: "Emmanuel" }),
     location: z.string().nullable().openapi({ description: "City / region.", example: "Douala" }),
     ...publicFields,
+    memberSince: z.string(),
+    languages: z.array(
+      z.object({
+        id: z.uuid(),
+        code: z.string().length(2),
+        nameEn: z.string(),
+        nameFr: z.string(),
+      }),
+    ),
+    qualifications: z.array(
+      z.object({
+        id: z.uuid(),
+        kind: z.enum(["degree", "specialisation", "certification", "training", "award"]),
+        title: z.string(),
+        institution: z.string(),
+        country: z.string(),
+        year: z.number().int(),
+        sortOrder: z.number().int(),
+        verifiedAt: z.string().nullable(),
+      }),
+    ),
+    locations: z.array(
+      z.object({
+        id: z.uuid(),
+        label: z.string(),
+        addressLine1: z.string(),
+        addressLine2: z.string().nullable(),
+        city: z.string(),
+        region: z.string(),
+        country: z.string(),
+        latitude: z.number().nullable(),
+        longitude: z.number().nullable(),
+        consultationTypes: z.array(z.enum(CONSULTATION_TYPES)),
+        isPrimary: z.boolean(),
+      }),
+    ),
+    offerings: z.array(
+      z.object({
+        id: z.uuid(),
+        consultationType: z.enum(CONSULTATION_TYPES),
+        durationMin: z.number().int(),
+        priceXaf: z.number().int(),
+        active: z.boolean(),
+      }),
+    ),
+    rating: z.object({
+      average: z.number(),
+      count: z.number().int(),
+      distribution: z.object({
+        1: z.number().int(),
+        2: z.number().int(),
+        3: z.number().int(),
+        4: z.number().int(),
+        5: z.number().int(),
+      }),
+    }),
+    verification: z.object({
+      status: z.literal("verified"),
+      body: z.literal("CMC"),
+      registrationNumber: z.string(),
+    }),
+    booking: z.object({ bookable: z.boolean(), reasons: z.array(z.string()) }),
+    canReview: z.literal(false),
     photoUrl: z.string().nullable().openapi({
       description: "Presigned download URL for the profile photo. Null if none is set.",
       example:
@@ -274,3 +347,25 @@ export const PublicPractitionerResponse = z
     }),
   })
   .openapi("PublicPractitioner");
+
+export const PractitionerVerificationResponse = z
+  .object({
+    status: z.enum(["incomplete", "pending_verification", "verified", "rejected"]),
+    submittedAt: z.string().nullable(),
+    documents: z.array(
+      z.object({
+        kind: z.enum(["cmc-certificate", "nic", "profile-photo"]),
+        url: z.string(),
+        uploadedAt: z.string(),
+      }),
+    ),
+    latestDecision: z
+      .object({
+        decision: z.enum(["approved", "rejected"]),
+        reason: z.string().nullable(),
+        createdAt: z.string(),
+      })
+      .nullable(),
+    canResubmit: z.boolean(),
+  })
+  .openapi("PractitionerVerification");

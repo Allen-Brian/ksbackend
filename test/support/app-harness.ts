@@ -20,6 +20,7 @@ export type TestHarness = {
   readonly sent: ReadonlyArray<EmailMessage>;
   readonly post: (path: string, body: JsonValue, cookie?: string) => Promise<Response>;
   readonly signUpAndVerify: (email: string, password: string, name: string) => Promise<string>;
+  readonly userIdFor: (email: string) => Promise<string>;
   /** Promote an existing user to admin with the given scope (role + admin_profile). */
   readonly promoteToAdmin: (email: string, scope?: AdminScope) => Promise<void>;
   readonly otpFor: (email: string) => string;
@@ -31,6 +32,7 @@ type JsonValue = string | number | boolean | null | JsonObject | ReadonlyArray<J
 type HarnessConfig = {
   readonly RATE_LIMIT_MAX?: string;
   readonly RATE_LIMIT_WINDOW_SECONDS?: string;
+  readonly PLATFORM_COMMISSION_BPS?: string;
 };
 
 // A scan-aware fake: any file key containing "infected" reports infected, so the
@@ -137,6 +139,13 @@ export const createTestHarness = async (
     await db.insert(adminProfile).values({ id: crypto.randomUUID(), userId, scope });
   };
 
+  const userIdFor = async (email: string): Promise<string> => {
+    const rows = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
+    const id = rows[0]?.id;
+    if (id === undefined) throw new Error(`no user for ${email}`);
+    return id;
+  };
+
   const dispose = async (): Promise<void> => {
     await runtime.dispose();
     await auth.close();
@@ -144,5 +153,5 @@ export const createTestHarness = async (
     await pg.stop();
   };
 
-  return { app, db, sent, post, signUpAndVerify, promoteToAdmin, otpFor, dispose };
+  return { app, db, sent, post, signUpAndVerify, userIdFor, promoteToAdmin, otpFor, dispose };
 };

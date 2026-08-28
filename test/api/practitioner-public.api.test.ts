@@ -8,6 +8,7 @@ const PROFESSION_ID = "00000000-0000-4000-8000-000000000055";
 
 const verifiedPractitioner = async (harness: TestHarness, email: string): Promise<string> => {
   const cookie = await harness.signUpAndVerify(email, "password12345", "Doc Public");
+  const userId = await harness.userIdFor(email);
   const id = (
     await json<{ id: string }>(
       await harness.post(
@@ -29,9 +30,9 @@ const verifiedPractitioner = async (harness: TestHarness, email: string): Promis
     {
       cmcRegistrationNumber: `CMC-${email}`,
       nicNumber: `NIC-${email}`,
-      cmcCertificateFileKey: `practitioner-documents/${email}/cmc`,
-      nicFileKey: `practitioner-documents/${email}/nic`,
-      profilePhotoFileKey: `profile-photos/${email}/photo`,
+      cmcCertificateFileKey: `practitioner-documents/${userId}/cmc`,
+      nicFileKey: `practitioner-documents/${userId}/nic`,
+      profilePhotoFileKey: `profile-photos/${userId}/photo`,
     },
     cookie,
   );
@@ -50,6 +51,7 @@ describe("practitioner public profile API (real DB)", () => {
       .values({ id: PROFESSION_ID, nameEn: "Doctor", nameFr: "Médecin", prefixHint: "Dr." });
 
     docCookie = await harness.signUpAndVerify("pub-doc@example.com", "password12345", "Doc Pub");
+    const doctorUserId = await harness.userIdFor("pub-doc@example.com");
     practitionerId = (
       await json<{ id: string }>(
         await harness.post(
@@ -71,9 +73,9 @@ describe("practitioner public profile API (real DB)", () => {
       {
         cmcRegistrationNumber: "CMC-PUB",
         nicNumber: "NIC-PUB",
-        cmcCertificateFileKey: "practitioner-documents/pub/cmc",
-        nicFileKey: "practitioner-documents/pub/nic",
-        profilePhotoFileKey: "profile-photos/pub/photo",
+        cmcCertificateFileKey: `practitioner-documents/${doctorUserId}/cmc`,
+        nicFileKey: `practitioner-documents/${doctorUserId}/nic`,
+        profilePhotoFileKey: `profile-photos/${doctorUserId}/photo`,
       },
       docCookie,
     );

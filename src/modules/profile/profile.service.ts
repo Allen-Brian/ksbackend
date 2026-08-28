@@ -6,7 +6,7 @@ import { IdGenerator } from "@/infra/ids";
 import { FileStorage, type PresignedUpload, type StorageError } from "@/infra/storage";
 import { ProfileRepo } from "./profile.repo";
 
-const AVATAR_CONTENT_TYPES = ["image/jpeg", "image/png"];
+const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png"]);
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export interface ProfileServiceService {
@@ -19,6 +19,10 @@ export interface ProfileServiceService {
     userId: string,
     contentType: string,
   ) => Effect.Effect<PresignedUpload, ValidationFailed | StorageError>;
+  readonly updateLocale: (
+    userId: string,
+    locale: "en" | "fr",
+  ) => Effect.Effect<void, NotFound | SqlError.SqlError>;
 }
 
 export class ProfileService extends Context.Tag("ProfileService")<
@@ -29,17 +33,15 @@ export class ProfileService extends Context.Tag("ProfileService")<
 /** Avatar keys are namespaced by user, so a client can't claim another's upload. */
 const avatarPrefix = (userId: string) => `profile-photos/${userId}/`;
 
+const orNotFound = (found: Profile | undefined): Effect.Effect<Profile, NotFound> =>
+  found === undefined ? Effect.fail(new NotFound({ resource: "Profile" })) : Effect.succeed(found);
+
 export const ProfileServiceLive = Layer.effect(
   ProfileService,
   Effect.gen(function* () {
     const repo = yield* ProfileRepo;
     const storage = yield* FileStorage;
     const ids = yield* IdGenerator;
-
-    const orNotFound = (found: Profile | undefined) =>
-      found === undefined
-        ? Effect.fail(new NotFound({ resource: "Profile" }))
-        : Effect.succeed(found);
 
     return {
       get: (userId) => repo.findByUserId(userId).pipe(Effect.flatMap(orNotFound)),
@@ -65,7 +67,7 @@ export const ProfileServiceLive = Layer.effect(
 
       presignAvatar: (userId, contentType) =>
         Effect.gen(function* () {
-          if (!AVATAR_CONTENT_TYPES.includes(contentType)) {
+          if (!AVATAR_CONTENT_TYPES.has(contentType)) {
             return yield* Effect.fail(
               new ValidationFailed({
                 issues: [{ path: "contentType", message: "Avatar must be a JPEG or PNG." }],
@@ -79,6 +81,14 @@ export const ProfileServiceLive = Layer.effect(
             maxBytes: AVATAR_MAX_BYTES,
           });
         }),
+      updateLocale: (userId, locale) =>
+        repo
+          .updateLocale(userId, locale)
+          .pipe(
+            Effect.flatMap((updated) =>
+              updated ? Effect.void : Effect.fail(new NotFound({ resource: "Account" })),
+            ),
+          ),
     };
   }),
 );

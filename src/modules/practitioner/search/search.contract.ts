@@ -75,6 +75,20 @@ const PractitionerCard = z
       example: "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
     }),
     professionId: z.uuid().openapi({ description: "Profession id from the catalog." }),
+    profession: z.object({
+      id: z.uuid(),
+      nameEn: z.string(),
+      nameFr: z.string(),
+      prefixHint: z.string().nullable(),
+    }),
+    languages: z.array(
+      z.object({
+        id: z.uuid(),
+        code: z.string().length(2),
+        nameEn: z.string(),
+        nameFr: z.string(),
+      }),
+    ),
     prefix: z
       .string()
       .nullable()

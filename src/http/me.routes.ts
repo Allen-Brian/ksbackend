@@ -1,6 +1,7 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import { Effect } from "effect";
 import { CurrentUser } from "@/infra/auth";
+import { ProfileService } from "@/modules/profile/profile.service";
 import type { AppEnv, AppRuntime } from "./app-env";
 import { makeRun } from "./run";
 import { ErrorResponse } from "./schemas";
@@ -44,6 +45,22 @@ const me = createRoute({
   },
 });
 
+const updateMe = createRoute({
+  method: "patch",
+  path: "/v1/me",
+  tags: ["Account"],
+  summary: "Update account preferences",
+  request: { body: jsonBody(z.object({ locale: z.enum(["en", "fr"]) })) },
+  responses: {
+    200: {
+      ...jsonBody(z.object({ locale: z.enum(["en", "fr"]) })),
+      description: "Updated preferences.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: { ...jsonBody(ErrorResponse), description: "Unknown account." },
+  },
+});
+
 /** `GET /v1/me` — identity + roles for the signed-in user (profile lives per-module). */
 export const registerMeRoute = (app: OpenAPIHono<AppEnv>, runtime: AppRuntime): void => {
   const { runAuth } = makeRun(runtime);
@@ -63,6 +80,18 @@ export const registerMeRoute = (app: OpenAPIHono<AppEnv>, runtime: AppRuntime): 
           200,
         ),
       ),
+    ),
+  );
+  app.openapi(updateMe, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const current = yield* CurrentUser;
+        const service = yield* ProfileService;
+        const { locale } = c.req.valid("json");
+        yield* service.updateLocale(current.id, locale);
+        return c.json({ locale }, 200);
+      }),
     ),
   );
 };

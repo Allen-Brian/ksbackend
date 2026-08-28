@@ -28,10 +28,17 @@ export type Practitioner = {
   readonly ratingCount: number;
   readonly latitude: number | null;
   readonly longitude: number | null;
+  readonly cmcNumber: string | null;
   readonly cmcCertificateFileKey: string | null;
+  readonly cmcCertificateUploadedAt: Date | null;
   readonly nicFileKey: string | null;
+  readonly nicUploadedAt: Date | null;
   readonly profilePhotoFileKey: string | null;
+  readonly profilePhotoUploadedAt: Date | null;
   readonly verificationStatus: VerificationStatus;
+  readonly verificationSubmittedAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
 };
 
 /** Editable public-profile fields (PATCH /v1/practitioners/me). */
@@ -44,6 +51,7 @@ export type PublicProfilePatch = {
   readonly yearsExperience?: number | undefined;
   readonly consultationFeeXaf?: number | undefined;
   readonly consultationTypes?: ReadonlyArray<ConsultationType> | undefined;
+  readonly profilePhotoFileKey?: string | undefined;
 };
 
 export type PractitionerRegistration = {
@@ -55,6 +63,7 @@ export type PractitionerRegistration = {
   readonly dateOfBirth?: string | undefined;
   readonly sex?: Sex | undefined;
   readonly location?: string | undefined;
+  readonly consultationTypes?: ReadonlyArray<ConsultationType> | undefined;
   readonly consentVersion: string;
 };
 

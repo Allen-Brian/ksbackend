@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { REVIEW_SORTS } from "@/domain/review/review";
 import { paginated } from "@/http/schemas";
 
 export const UpsertReviewBody = z
@@ -25,6 +26,10 @@ export const ReviewResponse = z
       description: "The reviewer's given name; null if unavailable.",
       example: "Marie",
     }),
+    verifiedAppointment: z.boolean().openapi({
+      description: "Whether a completed appointment backs this review.",
+      example: false,
+    }),
     rating: z.number().int().openapi({ description: "Star rating 1–5.", example: 5 }),
     comment: z
       .string()
@@ -36,3 +41,24 @@ export const ReviewResponse = z
   .openapi("Review");
 
 export const ReviewsPage = paginated(ReviewResponse).openapi("Reviews");
+
+export const ReviewSummaryResponse = z
+  .object({
+    average: z.number(),
+    count: z.number().int().nonnegative(),
+    distribution: z.object({
+      1: z.number().int().nonnegative(),
+      2: z.number().int().nonnegative(),
+      3: z.number().int().nonnegative(),
+      4: z.number().int().nonnegative(),
+      5: z.number().int().nonnegative(),
+    }),
+  })
+  .openapi("ReviewSummary");
+
+export const ReviewListQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: z.string().max(500).optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional(),
+  sort: z.enum(REVIEW_SORTS).default("newest"),
+});

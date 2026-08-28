@@ -135,7 +135,7 @@ for (const [index, file] of boundedFiles.entries()) {
         if (internal !== "" && !internal.startsWith("src/domain")) {
           fail(file, `domain/ may only import from domain/ (imports "${spec}")`);
         }
-        if (pkg !== "" && pkg !== "effect") {
+        if (pkg !== "" && pkg !== "effect" && !(file.endsWith(".test.ts") && pkg === "vitest")) {
           fail(file, `domain/ is pure — only "effect" is allowed (imports "${spec}")`);
         }
         break;

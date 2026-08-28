@@ -13,6 +13,8 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
 const toCard = (item: PractitionerSearchItem) => ({
   id: item.id,
   professionId: item.professionId,
+  profession: item.profession,
+  languages: [...item.languages],
   prefix: item.prefix,
   surname: item.surname,
   givenNames: item.givenNames,

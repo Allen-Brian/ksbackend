@@ -2,6 +2,7 @@ import { Cause, Option } from "effect";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { SlotOverlap } from "@/domain/availability/errors";
+import { ReviewNotEligible } from "@/domain/review/errors";
 import {
   Conflict,
   FileInfected,
@@ -40,6 +41,9 @@ export const causeToError = (cause: Cause.Cause<unknown>): MappedError => {
     }
     if (error instanceof Forbidden) {
       return { status: 403, code: "FORBIDDEN", params: {}, details: [] };
+    }
+    if (error instanceof ReviewNotEligible) {
+      return { status: 403, code: "REVIEW_NOT_ELIGIBLE", params: {}, details: [] };
     }
     if (error instanceof Conflict) {
       return { status: 409, code: "CONFLICT", params: { resource: error.resource }, details: [] };

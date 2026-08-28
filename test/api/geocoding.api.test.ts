@@ -36,6 +36,7 @@ describe("geocoding + distance API (real DB)", () => {
     verify: boolean,
   ): Promise<{ id: string; cookie: string }> => {
     const cookie = await harness.signUpAndVerify(email, "password12345", "Doc");
+    const userId = await harness.userIdFor(email);
     const base = {
       role: "doctor",
       professionId: PROFESSION_ID,
@@ -53,9 +54,9 @@ describe("geocoding + distance API (real DB)", () => {
       {
         cmcRegistrationNumber: `CMC-${email}`,
         nicNumber: `NIC-${email}`,
-        cmcCertificateFileKey: `practitioner-documents/${email}/cmc`,
-        nicFileKey: `practitioner-documents/${email}/nic`,
-        profilePhotoFileKey: `profile-photos/${email}/photo`,
+        cmcCertificateFileKey: `practitioner-documents/${userId}/cmc`,
+        nicFileKey: `practitioner-documents/${userId}/nic`,
+        profilePhotoFileKey: `profile-photos/${userId}/photo`,
       },
       cookie,
     );

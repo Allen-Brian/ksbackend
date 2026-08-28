@@ -1,15 +1,32 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
-import type { Review, ReviewInput } from "@/domain/review/review";
+import { ReviewNotEligible } from "@/domain/review/errors";
+import type { Review, ReviewInput, ReviewSort, ReviewSummary } from "@/domain/review/review";
 import { Forbidden, NotFound, ValidationFailed } from "@/domain/shared/errors";
 import { CurrentUser } from "@/infra/auth";
 import { requireRole } from "@/infra/authz";
 import { IdGenerator } from "@/infra/ids";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { PractitionerRepo } from "@/modules/practitioner/practitioner.repo";
-import { ReviewRepo } from "./review.repo";
+import { ReviewRepo, type ReviewCursor } from "./review.repo";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const encodeReviewCursor = (review: Review): string =>
+  encodeCursor(`${review.rating}:${review.id}`);
+const decodeReviewCursor = (cursor: string): ReviewCursor | undefined => {
+  const [rawRating, id, ...rest] = decodeCursor(cursor).split(":");
+  const rating = Number(rawRating);
+  return rest.length === 0 && id !== undefined && UUID_RE.test(id) && rating >= 1 && rating <= 5
+    ? { id, rating }
+    : undefined;
+};
+
+// Appointment creation is deliberately a later story. The API owns this rule now:
+// until a completed appointment can be found, nobody is eligible to write a review.
+const assertCanReview = (practitionerProfileId: string) =>
+  requireRole("patient").pipe(
+    Effect.zipRight(Effect.fail(new ReviewNotEligible({ practitionerProfileId }))),
+  );
 
 export type ReviewPage = {
   readonly data: ReadonlyArray<Review>;
@@ -28,7 +45,7 @@ export interface ReviewServiceService {
     input: ReviewInput,
   ) => Effect.Effect<
     { readonly review: Review; readonly created: boolean },
-    Forbidden | NotFound | SqlError.SqlError,
+    Forbidden | ReviewNotEligible | NotFound | SqlError.SqlError,
     CurrentUser
   >;
   readonly deleteOwnReview: (
@@ -39,7 +56,20 @@ export interface ReviewServiceService {
     practitionerProfileId: string,
     limit: number,
     cursor: string | undefined,
+    rating: number | undefined,
+    sort: ReviewSort,
   ) => Effect.Effect<ReviewPage, NotFound | ValidationFailed | SqlError.SqlError>;
+  readonly getOwnReview: (
+    reviewerUserId: string,
+    practitionerProfileId: string,
+  ) => Effect.Effect<Review, NotFound | SqlError.SqlError>;
+  readonly summary: (
+    practitionerProfileId: string,
+  ) => Effect.Effect<ReviewSummary, NotFound | SqlError.SqlError>;
+  readonly canReview: (
+    reviewerUserId: string,
+    practitionerProfileId: string,
+  ) => Effect.Effect<boolean, SqlError.SqlError>;
 }
 
 export class ReviewService extends Context.Tag("ReviewService")<
@@ -54,10 +84,6 @@ export const ReviewServiceLive = Layer.effect(
     const practitionerRepo = yield* PractitionerRepo;
     const ids = yield* IdGenerator;
     const sql = yield* SqlClient.SqlClient;
-
-    // TODO(SCRUM-17): once booking exists, also require a completed appointment with
-    // this practitioner before a patient can review them. For now the patient role gates it.
-    const assertCanReview = requireRole("patient");
 
     // A review targets only a real, verified practitioner (unknown/unverified → 404,
     // matching the public-profile posture so ids aren't probed).
@@ -75,8 +101,8 @@ export const ReviewServiceLive = Layer.effect(
     return {
       upsertReview: (reviewerUserId, practitionerProfileId, input) =>
         Effect.gen(function* () {
-          yield* assertCanReview;
           yield* requireVerified(practitionerProfileId);
+          yield* assertCanReview(practitionerProfileId);
           const now = new Date(yield* Clock.currentTimeMillis);
           // upsert + recompute are one atomic unit so the aggregate never drifts.
           const created = yield* sql.withTransaction(
@@ -126,20 +152,25 @@ export const ReviewServiceLive = Layer.effect(
           );
         }),
 
-      listReviews: (practitionerProfileId, limit, cursor) =>
+      listReviews: (practitionerProfileId, limit, cursor, rating, sort) =>
         Effect.gen(function* () {
           yield* requireVerified(practitionerProfileId);
-          let beforeId: string | undefined;
+          let decodedCursor: ReviewCursor | undefined;
           if (cursor !== undefined) {
-            const decoded = decodeCursor(cursor);
-            if (!UUID_RE.test(decoded)) {
+            decodedCursor = decodeReviewCursor(cursor);
+            if (decodedCursor === undefined) {
               return yield* Effect.fail(
                 new ValidationFailed({ issues: [{ path: "cursor", message: "Invalid cursor." }] }),
               );
             }
-            beforeId = decoded;
           }
-          const rows = yield* repo.listByPractitioner(practitionerProfileId, limit + 1, beforeId);
+          const rows = yield* repo.listByPractitioner(
+            practitionerProfileId,
+            limit + 1,
+            decodedCursor,
+            rating,
+            sort,
+          );
           const hasNextPage = rows.length > limit;
           const data = hasNextPage ? rows.slice(0, limit) : rows;
           const last = data.at(-1);
@@ -148,11 +179,26 @@ export const ReviewServiceLive = Layer.effect(
             meta: {
               count: data.length,
               limit,
-              nextCursor: hasNextPage && last ? encodeCursor(last.id) : null,
+              nextCursor: hasNextPage && last ? encodeReviewCursor(last) : null,
               hasNextPage,
             },
           };
         }),
+
+      getOwnReview: (reviewerUserId, practitionerProfileId) =>
+        requireVerified(practitionerProfileId).pipe(
+          Effect.zipRight(repo.findActiveByPair(reviewerUserId, practitionerProfileId)),
+          Effect.flatMap((found) =>
+            found ? Effect.succeed(found) : Effect.fail(new NotFound({ resource: "Review" })),
+          ),
+        ),
+
+      summary: (practitionerProfileId) =>
+        requireVerified(practitionerProfileId).pipe(
+          Effect.zipRight(repo.summary(practitionerProfileId)),
+        ),
+
+      canReview: () => Effect.succeed(false),
     } satisfies ReviewServiceService;
   }),
 );

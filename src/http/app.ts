@@ -14,12 +14,17 @@ import { RateLimiter } from "@/infra/rate-limiter";
 import { registerAdminRoutes } from "@/modules/admin/admin.routes";
 import { registerDependentRoutes } from "@/modules/dependent/dependent.routes";
 import { registerInvitationRoutes } from "@/modules/invitation/invitation.routes";
+import { registerLocationRoutes } from "@/modules/location/location.routes";
 import { registerPatientRoutes } from "@/modules/patient/patient.routes";
 import { registerPatientSearchRoutes } from "@/modules/patient/search/search.routes";
+import { registerOfferingRoutes } from "@/modules/offering/offering.routes";
+import { registerPayoutRoutes } from "@/modules/payout/payout.routes";
 import { registerPractitionerRoutes } from "@/modules/practitioner/practitioner.routes";
 import { registerPractitionerSearchRoutes } from "@/modules/practitioner/search/search.routes";
 import { registerNotificationRoutes } from "@/modules/notification/notification.routes";
 import { registerReviewRoutes } from "@/modules/review/review.routes";
+import { registerQualificationRoutes } from "@/modules/qualification/qualification.routes";
+import { registerReferenceRoutes } from "@/modules/reference/reference.routes";
 import { registerAvailabilityRoutes } from "@/modules/availability/availability.routes";
 import { registerProfileRoutes } from "@/modules/profile/profile.routes";
 import type { AppEnv, AppRuntime } from "./app-env";
@@ -70,7 +75,7 @@ export const createApp = (
       origin: corsOrigins,
       credentials: true,
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       maxAge: 600,
     }),
   );
@@ -166,6 +171,11 @@ export const createApp = (
   registerPractitionerSearchRoutes(app, runtime);
   registerReviewRoutes(app, runtime);
   registerAvailabilityRoutes(app, runtime);
+  registerReferenceRoutes(app, runtime);
+  registerQualificationRoutes(app, runtime);
+  registerLocationRoutes(app, runtime);
+  registerOfferingRoutes(app, runtime);
+  registerPayoutRoutes(app, runtime);
   registerAdminRoutes(app, runtime);
   registerDependentRoutes(app, runtime);
   registerInvitationRoutes(app, runtime);
@@ -252,6 +262,14 @@ export const createApp = (
         description:
           "Practitioners publish bookable time slots; drives the next-available slot shown on discovery cards.",
       },
+      { name: "Reference", description: "Active profession and ISO language catalogs." },
+      { name: "Qualifications", description: "Practitioner qualifications and certifications." },
+      { name: "Locations", description: "Structured practitioner appointment locations." },
+      {
+        name: "Offerings",
+        description: "Consultation type, duration, pricing, and earnings terms.",
+      },
+      { name: "Payouts", description: "Private, encrypted practitioner payout methods." },
       {
         name: "Admin",
         description:

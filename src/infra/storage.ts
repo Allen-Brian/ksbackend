@@ -29,8 +29,6 @@ export interface FileStorageService {
 
 export class FileStorage extends Context.Tag("FileStorage")<FileStorage, FileStorageService>() {}
 
-const PRESIGN_TTL_SECONDS = 300;
-
 export const FileStorageS3Live = Layer.effect(
   FileStorage,
   Effect.gen(function* () {
@@ -42,6 +40,12 @@ export const FileStorageS3Live = Layer.effect(
     // SDK's default env chain.
     const forcePathStyle = yield* Config.boolean("S3_FORCE_PATH_STYLE").pipe(
       Config.withDefault(false),
+    );
+    const uploadTtlSeconds = yield* Config.integer("S3_UPLOAD_PRESIGN_TTL_SECONDS").pipe(
+      Config.withDefault(300),
+    );
+    const downloadTtlSeconds = yield* Config.integer("S3_DOWNLOAD_PRESIGN_TTL_SECONDS").pipe(
+      Config.withDefault(3600),
     );
     // The SDK adds default request checksums (CRC32) to PutObject; a presigned URL
     // then demands a checksum header the uploading client (browser/RN/curl) won't
@@ -69,14 +73,14 @@ export const FileStorageS3Live = Layer.effect(
               ContentType: contentType,
               ContentLength: maxBytes,
             }),
-            { expiresIn: PRESIGN_TTL_SECONDS },
+            { expiresIn: uploadTtlSeconds },
           );
           return { url, key };
         }),
       presignDownload: (key) =>
         attempt(() =>
           getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-            expiresIn: PRESIGN_TTL_SECONDS,
+            expiresIn: downloadTtlSeconds,
           }),
         ),
       delete: (key) =>

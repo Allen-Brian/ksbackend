@@ -3,6 +3,7 @@
   "errors.ROUTE_NOT_FOUND": "The requested endpoint was not found.",
   "errors.UNAUTHORIZED": "Authentication required.",
   "errors.FORBIDDEN": "You do not have access to this resource.",
+  "errors.REVIEW_NOT_ELIGIBLE": "You can review this practitioner after completing an appointment.",
   "errors.CONFLICT": "{resource} already exists.",
   "errors.VALIDATION_FAILED": "Request validation failed.",
   "errors.PAYLOAD_TOO_LARGE": "Request body exceeds the 1 MB limit.",

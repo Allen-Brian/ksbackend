@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   integer,
   numeric,
@@ -29,6 +30,9 @@ export const practitionerProfile = pgTable("practitioner_profile", {
   specialty: text("specialty"),
   bio: text("bio"),
   languagesSpoken: text("languages_spoken").array(),
+  // Temporary migration marker: true when a pre-ISO language value could not be mapped.
+  // New writes are reference-validated and always set this false.
+  languagesLegacy: boolean("languages_legacy").notNull().default(false),
   yearsExperience: integer("years_experience"),
   consultationFeeXaf: integer("consultation_fee_xaf"),
   consultationTypes: consultationTypeEnum("consultation_types").array(),
@@ -43,13 +47,21 @@ export const practitionerProfile = pgTable("practitioner_profile", {
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
   cmcNumberEncrypted: text("cmc_number_encrypted"),
+  // CMC registration numbers are public professional identifiers. Keep a display
+  // copy for the patient-facing verified profile and the HMAC for uniqueness.
+  // NIC remains encrypted and admin-only.
+  cmcNumber: text("cmc_number"),
   cmcNumberHmac: text("cmc_number_hmac").unique(),
   nicNumberEncrypted: text("nic_number_encrypted"),
   nicNumberHmac: text("nic_number_hmac").unique(),
   cmcCertificateFileKey: text("cmc_certificate_file_key"),
+  cmcCertificateUploadedAt: timestamp("cmc_certificate_uploaded_at", { withTimezone: true }),
   nicFileKey: text("nic_file_key"),
+  nicUploadedAt: timestamp("nic_uploaded_at", { withTimezone: true }),
   profilePhotoFileKey: text("profile_photo_file_key"),
+  profilePhotoUploadedAt: timestamp("profile_photo_uploaded_at", { withTimezone: true }),
   verificationStatus: verificationStatusEnum("verification_status").notNull().default("incomplete"),
+  verificationSubmittedAt: timestamp("verification_submitted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
