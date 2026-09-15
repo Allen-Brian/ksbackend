@@ -58,7 +58,10 @@ runs:
         {
           printf 'export GHCR_TOKEN=%q GHCR_USER=%q IMAGE_TAG=%q\n' "$GHCR_TOKEN" "$GHCR_USER" "$IMAGE_TAG"
           cat deploy/deploy.sh
-        } | ssh vm bash -s -- "${{ inputs.stage }}"
+        } | ssh vm bash -s -- "${{ inputs.stage }}" | tee deploy.log
+        # Belt and braces: a script that ends early (e.g. stdin swallowed by a
+        # child) exits 0 without doing the work — require the explicit sentinel.
+        tail -1 deploy.log | grep -qx DEPLOY_OK || { echo "::error::deploy.sh did not complete (no DEPLOY_OK)"; exit 1; }
 
     - name: Smoke test (public URL)
       # Advisory: the box-local /readyz check in deploy.sh is what gates success.
