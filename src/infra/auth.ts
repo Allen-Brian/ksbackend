@@ -70,6 +70,12 @@ const otpSendRules = {
  */
 export const makeAuth = (options: AuthOptions) => {
   const db = drizzle(options.databaseUrl, { schema: authSchema });
+  // node-postgres: an idle client that drops (server restart, network blip) emits
+  // `error` on the pool, and an unlistened `error` event takes the process down.
+  // Log it; the pool replaces the client on the next checkout.
+  db.$client.on("error", (error) => {
+    console.error("auth db pool: idle client error", error.message);
+  });
 
   const lookupLocale = async (email: string): Promise<Locale> => {
     const rows = await db

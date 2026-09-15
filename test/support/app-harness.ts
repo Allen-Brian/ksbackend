@@ -76,6 +76,9 @@ export const createTestHarness = async (
 ): Promise<TestHarness> => {
   const pg = await startTestPostgres();
   const db = drizzle(pg.url);
+  // Teardown stops the container; any client still open dies with 57P01, which
+  // an unlistened pool turns into a vitest "unhandled error" (flaky CI).
+  db.$client.on("error", () => {});
   const sent: EmailMessage[] = [];
   const record = (message: EmailMessage): void => {
     sent.push(message);
