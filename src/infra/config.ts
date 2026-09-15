@@ -10,6 +10,7 @@ import { Config } from "effect";
 export const AppConfig = Config.all({
   appEnv: Config.literal(
     "local",
+    "dev",
     "test",
     "ci",
     "staging",

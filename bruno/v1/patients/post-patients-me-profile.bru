@@ -1,0 +1,28 @@
+meta {
+  name: Create or update the current patient's profile
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/patients/me/profile
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "surname": "Mbeki",
+    "givenNames": "Ama",
+    "phone": "+237650000000",
+    "dateOfBirth": "1990-05-01",
+    "sex": "female",
+    "consentVersion": "2025-01",
+    "acceptTerms": true,
+    "emergencyContact": {
+      "name": "Ngo Mbeki",
+      "phone": "+237699000000",
+      "relationship": "Sister"
+    }
+  }
+}

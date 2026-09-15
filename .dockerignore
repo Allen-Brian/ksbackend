@@ -14,3 +14,7 @@ Dockerfile
 .dockerignore
 *.md
 lefthook.yml
+deploy
+bruno
+bruno-report*.html
+tools

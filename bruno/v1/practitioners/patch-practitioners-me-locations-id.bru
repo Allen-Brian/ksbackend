@@ -1,0 +1,30 @@
+meta {
+  name: PATCH /v1/practitioners/me/locations/{id}
+  type: http
+  seq: 17
+}
+
+patch {
+  url: {{baseUrl}}/v1/practitioners/me/locations/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "label": "text",
+    "addressLine1": "text",
+    "addressLine2": "text",
+    "city": "text",
+    "region": "text",
+    "country": "text",
+    "consultationTypes": [
+      "in_person"
+    ],
+    "isPrimary": false
+  }
+}

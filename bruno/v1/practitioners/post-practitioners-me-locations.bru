@@ -1,0 +1,26 @@
+meta {
+  name: POST /v1/practitioners/me/locations
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/locations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "label": "text",
+    "addressLine1": "text",
+    "addressLine2": "text",
+    "city": "text",
+    "region": "text",
+    "country": "text",
+    "consultationTypes": [
+      null
+    ],
+    "isPrimary": false
+  }
+}

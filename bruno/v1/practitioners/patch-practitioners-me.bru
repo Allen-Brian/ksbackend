@@ -1,0 +1,31 @@
+meta {
+  name: Update the current practitioner's public/bookable profile
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/v1/practitioners/me
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "prefix": "Dr.",
+    "location": "Douala",
+    "specialty": "Cardiology",
+    "bio": "Board-certified cardiologist with a focus on preventive care.",
+    "languagesSpoken": [
+      "French",
+      "English"
+    ],
+    "yearsExperience": 8,
+    "consultationFeeXaf": 15000,
+    "consultationTypes": [
+      "in_person",
+      "video"
+    ],
+    "profilePhotoFileKey": "text"
+  }
+}

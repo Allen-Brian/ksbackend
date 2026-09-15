@@ -1,0 +1,24 @@
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+docs {
+  KanaSanté API collection. Every /v1 request inherits the bearer token set by the
+  sign-in requests in auth/ (better-auth returns it in the `set-auth-token` response
+  header — no manual copying). Seed the demo accounts first: `bun run db:seed` with
+  the DEMO_* vars from .env.local.example, then run auth/ or flows/demo.
+
+  To verify a working end-to-end API without filling variables by hand, select the
+  local environment and run the entire flows/demo folder. Its requests capture and
+  pass tokens and resource IDs to later steps. The blank path parameters under
+  v1/ are intentional: those files are the exhaustive endpoint catalog and need a
+  concrete resource ID when run individually.
+
+  bruno/v1/** is generated from the OpenAPI spec by `bun run bruno:scaffold` and
+  enforced by test/api/bruno-coverage.api.test.ts: every documented operation must
+  have a request file here, and every request file must match a documented operation.
+}

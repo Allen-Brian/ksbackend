@@ -1,0 +1,11 @@
+meta {
+  name: Self-grant the patient role (become a care recipient)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/v1/me/roles/patient
+  body: none
+  auth: inherit
+}

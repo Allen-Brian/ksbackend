@@ -1,0 +1,15 @@
+meta {
+  name: Get your review of a practitioner
+  type: http
+  seq: 38
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id/reviews/me
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

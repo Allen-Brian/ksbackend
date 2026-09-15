@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Prepare the VM for a stage (one-time, idempotent). Run from your laptop:
+#
+#   bash deploy/bootstrap dev                          # ssh as $USER@kanasante.com
+#   SSH_USER=alice DEPLOY_HOST=1.2.3.4 bash deploy/bootstrap staging
+#
+# Log in as YOURSELF (a sudoer) — the password prompt is your own sudo password.
+#
+# Inlines deploy/ci-deploy-key.pub, deploy/env.example and the nginx template
+# into deploy/bootstrap.sh, copies it to the box and runs it under `sudo`.
+# You will be prompted for YOUR sudo password on the VM — nothing else.
+set -euo pipefail
+STAGE="${1:?usage: deploy/bootstrap <dev|staging|prod>}"
+HOST="${DEPLOY_HOST:-kanasante.com}"
+SSH_USER="${SSH_USER:-$USER}"
+echo "→ bootstrapping '$STAGE' on $HOST as $SSH_USER (sudo password = your own)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+PUBKEY="$(cat "$HERE/ci-deploy-key.pub")"
+ENV_B64="$(base64 -w0 "$HERE/env.example")"
+NGINX_B64="$(base64 -w0 "$HERE/nginx/api.conf.template")"
+
+# Copy the rendered script over (a plain `ssh … < script` would hijack stdin and
+# leave sudo with no terminal to prompt on), then run it in an interactive session.
+REMOTE=/tmp/kanasante-bootstrap-$STAGE.sh
+sed -e "s|__CI_PUBKEY__|$PUBKEY|" \
+    -e "s|__ENV_EXAMPLE_B64__|$ENV_B64|" \
+    -e "s|__NGINX_TEMPLATE_B64__|$NGINX_B64|" \
+    "$HERE/bootstrap.sh" \
+  | ssh "$SSH_USER@$HOST" "cat > $REMOTE"
+ssh -t "$SSH_USER@$HOST" "sudo bash $REMOTE '$STAGE'; rc=\$?; rm -f $REMOTE; exit \$rc"

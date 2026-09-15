@@ -1,0 +1,11 @@
+meta {
+  name: Get the current user's notification preferences (all categories)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/v1/me/notifications
+  body: none
+  auth: inherit
+}

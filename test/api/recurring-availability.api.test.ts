@@ -17,6 +17,9 @@ const EXCEPTION_ID = "0198e3f0-3000-7000-8000-000000000101";
 const EXTRA_EXCEPTION_ID = "0198e3f0-3000-7000-8000-000000000102";
 const UNKNOWN_ID = "0198e3f0-3000-7000-8000-000000000999";
 const RULE_DATE = "2026-09-07";
+// The fixtures above are concrete dates; pin "now" just before them so the
+// service's past-slot filtering behaves the same on any day this test runs.
+const NOW = new Date("2026-09-01T00:00:00.000Z");
 
 describe("recurring availability API (real DB)", () => {
   let harness: TestHarness;
@@ -69,7 +72,7 @@ describe("recurring availability API (real DB)", () => {
   };
 
   beforeAll(async () => {
-    harness = await createTestHarness();
+    harness = await createTestHarness(undefined, { now: NOW });
     await harness.db.insert(profession).values({
       id: PROFESSION_ID,
       nameEn: "Schedule specialist",

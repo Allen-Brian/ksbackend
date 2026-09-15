@@ -10,6 +10,9 @@ coverage/
 .env.*.local
 env.d.ts
 
+# Bruno runner output (bun run bruno:demo / bruno:all)
+bruno-report*.html
+
 # Logs / OS
 *.log
 .logs/

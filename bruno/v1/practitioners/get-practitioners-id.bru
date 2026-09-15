@@ -1,0 +1,15 @@
+meta {
+  name: Get a verified practitioner's public profile
+  type: http
+  seq: 32
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

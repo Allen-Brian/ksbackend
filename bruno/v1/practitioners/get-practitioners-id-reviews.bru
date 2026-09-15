@@ -1,0 +1,22 @@
+meta {
+  name: List a practitioner's reviews
+  type: http
+  seq: 35
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id/reviews
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~limit: 
+  ~cursor: 
+  ~rating: 
+  ~sort: 
+}
+
+params:path {
+  id: 
+}

@@ -1,0 +1,11 @@
+meta {
+  name: Get your verification submission and latest decision
+  type: http
+  seq: 30
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/me/verification
+  body: none
+  auth: inherit
+}

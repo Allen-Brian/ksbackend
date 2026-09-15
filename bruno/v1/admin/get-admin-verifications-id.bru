@@ -1,0 +1,15 @@
+meta {
+  name: Review a practitioner's submitted credentials
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/verifications/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

@@ -1,0 +1,25 @@
+meta {
+  name: 5 · Which days can they see a patient this month?
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id/availability/days?month={{demoMonth}}
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{practitionerId}}
+}
+
+script:pre-request {
+  bru.setVar("demoMonth", new Date().toISOString().slice(0, 7));
+}
+
+tests {
+  test("bookable days for the calendar screen", function () {
+    expect(res.status).to.equal(200);
+  });
+}

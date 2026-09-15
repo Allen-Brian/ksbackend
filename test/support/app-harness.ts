@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { ConfigProvider, Effect, Layer, ManagedRuntime } from "effect";
+import { Clock, ConfigProvider, Effect, Layer, ManagedRuntime } from "effect";
 import { expect } from "vitest";
 import { adminProfile } from "@/db/schema/admin-profile";
 import { user } from "@/db/schema/auth";
@@ -47,9 +47,32 @@ const scannerFake = Layer.succeed(FileScanner, {
  * email (OTP + notifications) into `sent`. `config` overrides Effect Config values
  * (e.g. RATE_LIMIT_MAX) while falling back to the environment for the rest.
  */
+type HarnessOptions = {
+  readonly rateLimit?: { readonly enabled: boolean };
+  /**
+   * Pin the Effect `Clock` the app reads "now" from. Tests that assert on
+   * concrete dates MUST set this — otherwise they expire when the calendar
+   * catches up with their fixtures. Sleeps still use the live clock.
+   */
+  readonly now?: Date;
+};
+
+const pinnedClock = (now: Date): Clock.Clock => {
+  const live = Clock.make();
+  const millis = now.getTime();
+  return {
+    [Clock.ClockTypeId]: Clock.ClockTypeId,
+    currentTimeMillis: Effect.succeed(millis),
+    currentTimeNanos: Effect.succeed(BigInt(millis) * 1_000_000n),
+    unsafeCurrentTimeMillis: () => millis,
+    unsafeCurrentTimeNanos: () => BigInt(millis) * 1_000_000n,
+    sleep: (duration) => live.sleep(duration),
+  };
+};
+
 export const createTestHarness = async (
   config?: HarnessConfig,
-  authOpts?: { readonly rateLimit?: { readonly enabled: boolean } },
+  authOpts?: HarnessOptions,
 ): Promise<TestHarness> => {
   const pg = await startTestPostgres();
   const db = drizzle(pg.url);
@@ -68,7 +91,7 @@ export const createTestHarness = async (
     scanner: scannerFake,
     geocoder: GeocoderFakeLive,
   });
-  const appLayer =
+  const configuredLayer =
     config === undefined
       ? baseLayer
       : Layer.provide(
@@ -79,6 +102,10 @@ export const createTestHarness = async (
             ),
           ),
         );
+  const appLayer =
+    authOpts?.now === undefined
+      ? configuredLayer
+      : Layer.provide(configuredLayer, Layer.setClock(pinnedClock(authOpts.now)));
 
   const runtime = ManagedRuntime.make(appLayer);
   const authBase = {

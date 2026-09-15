@@ -1,0 +1,15 @@
+meta {
+  name: Decline a caregiver invitation
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/invitations/:token/decline
+  body: none
+  auth: inherit
+}
+
+params:path {
+  token: 
+}

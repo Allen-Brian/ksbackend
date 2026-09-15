@@ -1,0 +1,31 @@
+meta {
+  name: PUT /v1/practitioners/me/availability/rules
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/v1/practitioners/me/availability/rules
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "rules": [
+      {
+        "weekday": 1,
+        "startTime": "text",
+        "endTime": "text",
+        "slotDurationMin": 1,
+        "consultationTypes": [
+          null
+        ],
+        "locationId": null,
+        "timezone": "Africa/Douala",
+        "validFrom": null,
+        "validTo": null
+      }
+    ]
+  }
+}

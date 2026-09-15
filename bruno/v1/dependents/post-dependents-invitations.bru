@@ -1,0 +1,18 @@
+meta {
+  name: Invite an account-holder to be linked as a dependent
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/dependents/invitations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "inviteeEmail": "ama@example.com",
+    "relationship": "parent"
+  }
+}

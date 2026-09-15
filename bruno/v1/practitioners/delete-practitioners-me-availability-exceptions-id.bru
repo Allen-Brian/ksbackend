@@ -1,0 +1,15 @@
+meta {
+  name: DELETE /v1/practitioners/me/availability/exceptions/{id}
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/v1/practitioners/me/availability/exceptions/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

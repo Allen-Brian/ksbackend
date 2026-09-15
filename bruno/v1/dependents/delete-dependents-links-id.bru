@@ -1,0 +1,15 @@
+meta {
+  name: Revoke a caregiver link (either party)
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/v1/dependents/links/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

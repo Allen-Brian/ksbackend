@@ -1,0 +1,28 @@
+meta {
+  name: Search verified practitioners (result cards)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 
+  ~pageSize: 
+  ~order: 
+  ~sort: 
+  ~specialty: 
+  ~city: 
+  ~language: 
+  ~consultationType: 
+  ~feeMin: 
+  ~feeMax: 
+  ~professionId: 
+  ~q: 
+  ~lat: 
+  ~lng: 
+}

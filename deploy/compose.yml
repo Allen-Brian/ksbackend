@@ -1,0 +1,80 @@
+# kanasante API — one stage on the VM (dev / staging / prod share this file).
+#
+# Lives at /srv/kanasante/<stage>/compose.yml on the box, shipped by CI on every
+# deploy (the VM has no git checkout). Everything stage-specific comes from the
+# sibling `.env` file, which is written ONCE by deploy/bootstrap.sh and then owned
+# by whoever operates the box — CI never reads or writes it.
+#
+#   COMPOSE_PROJECT_NAME  kanasante-<stage>   (namespaces containers + volumes)
+#   IMAGE                 ghcr.io/kanasante/api
+#   IMAGE_TAG             sha-<short>         (set by CI per deploy)
+#   API_PORT              host port nginx proxies to (127.0.0.1 only)
+#
+# The database is reachable only on the compose network — never published.
+name: ${COMPOSE_PROJECT_NAME:?set in .env}
+
+x-logging: &logging # Small disk: cap container logs so they can never fill the root volume.
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      POSTGRES_USER: ${DB_USER:-kanasante}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
+      POSTGRES_DB: ${DB_NAME:-kanasante}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-kanasante} -d ${DB_NAME:-kanasante}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  # One-shot: `docker compose run --rm migrate` (deploy.sh does this before
+  # starting the new api). Not started by `up` thanks to the profile.
+  migrate:
+    image: ${IMAGE:?set in .env}:${IMAGE_TAG:?set by CI}-migrate
+    profiles: [migrate]
+    <<: *logging
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-kanasante}:${DB_PASSWORD}@db:5432/${DB_NAME:-kanasante}
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    image: ${IMAGE:?set in .env}:${IMAGE_TAG:?set by CI}
+    restart: unless-stopped
+    <<: *logging
+    env_file: .env
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://${DB_USER:-kanasante}:${DB_PASSWORD}@db:5432/${DB_NAME:-kanasante}
+    ports:
+      - "127.0.0.1:${API_PORT:?set in .env}:3000"
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'bun -e "fetch(''http://localhost:3000/readyz'').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 768m }
+
+volumes:
+  pgdata:

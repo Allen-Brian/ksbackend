@@ -1,0 +1,15 @@
+meta {
+  name: Whether an account exists for an exact email (for linking)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/users/search
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~email: 
+}

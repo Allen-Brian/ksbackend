@@ -21,6 +21,8 @@ Never use `bun test` (Bun's runner) — always `bun run test` (Vitest).
 | Layers, folders, "what goes where", decision rules (service vs util, class vs fn, `type` vs `interface`) | **[docs/architecture.md](./docs/architecture.md)**       |
 | Coding standards: TypeScript, Effect, HTTP contracts, naming, testing                                    | **[docs/conventions.md](./docs/conventions.md)**         |
 | Step-by-step recipe to add a feature                                                                     | **[docs/adding-a-module.md](./docs/adding-a-module.md)** |
+| Bruno collection: demo/run every endpoint (enforced per-operation coverage)                              | **[docs/local-dev.md](./docs/local-dev.md)** § Bruno     |
+| Deployment: the Cape Town VM, the CI pipeline, stages, bootstrap, operating & rollback                   | **[docs/deployment.md](./docs/deployment.md)**           |
 | Full plan, seams, deferred decisions                                                                     | `docs/SCAFFOLDING_PLAN.md` (local, git-ignored)          |
 
 ## Non-negotiables (details in docs/conventions.md)

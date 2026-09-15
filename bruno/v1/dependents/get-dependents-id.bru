@@ -1,0 +1,15 @@
+meta {
+  name: Get a dependent
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/v1/dependents/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

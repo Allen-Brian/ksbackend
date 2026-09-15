@@ -1,0 +1,15 @@
+meta {
+  name: DELETE /v1/practitioners/me/qualifications/{id}
+  type: http
+  seq: 28
+}
+
+delete {
+  url: {{baseUrl}}/v1/practitioners/me/qualifications/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

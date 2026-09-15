@@ -1,0 +1,37 @@
+meta {
+  name: 1 · A diaspora patient signs in
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/auth/sign-in/email
+  body: json
+  auth: none
+}
+
+headers {
+  Origin: {{baseUrl}}
+}
+
+body:json {
+  {
+    "email": "{{demoPatientEmail}}",
+    "password": "{{demoPatientPassword}}"
+  }
+}
+
+script:post-response {
+  const token = res.headers["set-auth-token"];
+  if (token) {
+    bru.setVar("token", token);
+    bru.setVar("patientToken", token);
+  }
+}
+
+tests {
+  test("signed in — token captured automatically", function () {
+    expect(res.status).to.equal(200);
+    expect(res.headers["set-auth-token"]).to.be.a("string");
+  });
+}

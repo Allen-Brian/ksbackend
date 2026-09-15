@@ -97,6 +97,7 @@ The scaffold is complete — every pattern has a working, tested reference imple
   documented at `/api/auth/reference`.
 - **Hardening**: secure headers, CORS (config-driven), 1 MB body limit, rate limiting
   (in-process, Redis-swappable seam), stable error-code catalog, import-boundary +
-  naming + migration-drift checks in CI, production `Dockerfile` (`varlock run -- bun`).
+  naming + migration-drift checks in CI, production `Dockerfile` (`varlock run -- bun`), and
+  CI/CD to the dev VM — see [docs/deployment.md](./docs/deployment.md).
 
 Adding a feature = follow [`docs/adding-a-module.md`](./docs/adding-a-module.md) step by step.

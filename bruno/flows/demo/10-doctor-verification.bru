@@ -1,0 +1,17 @@
+meta {
+  name: 10 · Their credential verification status
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/me/verification
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("verification state for the onboarding checklist screen", function () {
+    expect(res.status).to.equal(200);
+  });
+}

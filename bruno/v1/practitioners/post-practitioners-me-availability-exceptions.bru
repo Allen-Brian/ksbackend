@@ -1,0 +1,23 @@
+meta {
+  name: POST /v1/practitioners/me/availability/exceptions
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/availability/exceptions
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "date": "2026-01-01",
+    "kind": "blocked",
+    "startTime": null,
+    "endTime": null,
+    "consultationTypes": null,
+    "locationId": null
+  }
+}

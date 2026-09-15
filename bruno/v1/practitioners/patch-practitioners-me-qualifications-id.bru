@@ -1,0 +1,26 @@
+meta {
+  name: PATCH /v1/practitioners/me/qualifications/{id}
+  type: http
+  seq: 29
+}
+
+patch {
+  url: {{baseUrl}}/v1/practitioners/me/qualifications/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "kind": "degree",
+    "title": "text",
+    "institution": "text",
+    "country": "text",
+    "year": 1,
+    "sortOrder": 0
+  }
+}

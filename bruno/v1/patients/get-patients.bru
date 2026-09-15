@@ -1,0 +1,19 @@
+meta {
+  name: Search patients (admin only)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/patients
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 
+  ~pageSize: 
+  ~order: 
+  ~sort: 
+  ~q: 
+}

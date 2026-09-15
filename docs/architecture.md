@@ -65,6 +65,8 @@ src/
   lib/
   runtime.ts   server.ts
 test/api/**/*.api.test.ts
+bruno/       # committed Bruno collection — one request per /v1 operation, enforced
+             # by test/api/bruno-coverage.api.test.ts (docs/local-dev.md § Bruno)
 ```
 
 ## Decision rules

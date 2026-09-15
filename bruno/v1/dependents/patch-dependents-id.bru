@@ -1,0 +1,27 @@
+meta {
+  name: Update a dependent
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/v1/dependents/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "surname": "Nkeng",
+    "givenNames": "Ariane",
+    "dateOfBirth": "2015-03-02",
+    "sex": "female",
+    "relationship": "child",
+    "phone": "+237650000000",
+    "location": "Bamenda, Cameroon"
+  }
+}

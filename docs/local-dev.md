@@ -130,6 +130,47 @@ Docs once it's up: `/docs` (Scalar, our `/v1/*` routes) · `/openapi.json` · `/
 (better-auth's own reference: sign-up, OTP, password reset, email/account management). Captured
 email: **http://localhost:8005**.
 
+## 4. Demoing the API with Bruno
+
+`bruno/` is a committed [Bruno](https://www.usebruno.com/) collection mirroring every `/v1`
+endpoint (plain-text `.bru` files — diffable, PR-reviewable). Open the folder in the Bruno app,
+pick the `local` environment, and run.
+
+One-time setup — uncomment the `DEMO_*` block in `.env.local` (see `.env.local.example`; the
+credentials must match `bruno/environments/local.bru`), then:
+
+```bash
+bun run db:seed      # demo patient, doctor, admin + a cast of verified practitioners
+```
+
+To verify the API in the Bruno app, open `flows/demo`, use the folder menu to run the whole
+folder, and keep the requests in sequence order. You should see 12 green requests and 12 passing
+tests. The flow captures each sign-in token and the selected practitioner's ID for the later
+requests, so it requires no manual variable entry. The equivalent headless check is:
+
+```bash
+bun run bruno:demo   # also writes bruno-report.html
+```
+
+Do not start with `v1/` for the one-click demo. That tree is the exhaustive endpoint catalog;
+blank path parameters such as `id` and `token` are intentionally left for the concrete resource
+you want when running an individual request.
+
+- **No token copying.** The sign-in requests in `bruno/auth/` (and inside the demo flow) store
+  the bearer token from better-auth's `set-auth-token` response header; every `/v1` request
+  inherits it from the collection-level auth. Sign in as a different account to switch identity.
+- **`bruno/flows/demo/`** is a curated, numbered story — patient signs in → searches → opens a
+  doctor → availability → reviews → doctor side → admin verification queue. One click on the
+  folder in Bruno's Runner (or headless: `bun run bruno:demo`, which writes `bruno-report.html`,
+  a shareable run report).
+- **`bruno/v1/`** holds one request per OpenAPI operation, foldered by resource. It is generated
+  by `bun run bruno:scaffold` and ENFORCED by `test/api/bruno-coverage.api.test.ts` (part of
+  `bun run test`): a new endpoint without a Bruno request fails the build — run the scaffold and
+  commit the new file (existing files are never overwritten, so hand-tuned bodies survive).
+- Sign-in requests send an explicit `Origin` header: better-auth rejects cookie-bearing
+  state-changing requests without one (`MISSING_OR_NULL_ORIGIN`), and Bruno's cookie jar always
+  replays the previous session cookie.
+
 ### Port collisions
 
 If `5432` (Postgres) or your chosen `PORT` are taken, shift them:

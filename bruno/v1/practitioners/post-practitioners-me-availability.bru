@@ -1,0 +1,21 @@
+meta {
+  name: Publish an availability slot
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/availability
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": "00000000-0000-4000-8000-000000000000",
+    "startsAt": "2026-09-01T09:00:00.000Z",
+    "endsAt": "2026-09-01T09:30:00.000Z",
+    "consultationTypes": [],
+    "locationId": null
+  }
+}

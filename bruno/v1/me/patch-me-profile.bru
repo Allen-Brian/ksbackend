@@ -1,0 +1,22 @@
+meta {
+  name: Update the current user's base profile
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/v1/me/profile
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "surname": "Mbeki",
+    "givenNames": "Ama",
+    "phone": "+237650000000",
+    "dateOfBirth": "1990-05-01",
+    "sex": "female",
+    "avatarFileKey": "text"
+  }
+}

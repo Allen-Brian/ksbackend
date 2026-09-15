@@ -1,0 +1,21 @@
+meta {
+  name: POST /v1/practitioners/me/payout-methods
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/payout-methods
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "kind": "mtn_momo",
+    "accountName": "text",
+    "accountNumber": "text",
+    "bankName": "text",
+    "isDefault": false
+  }
+}

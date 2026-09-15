@@ -1,0 +1,16 @@
+meta {
+  name: List your published slots
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/me/availability
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~limit: 
+  ~cursor: 
+}

@@ -1,0 +1,20 @@
+meta {
+  name: GET /v1/practitioners/{id}/availability
+  type: http
+  seq: 33
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id/availability
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~from: 
+  ~to: 
+}
+
+params:path {
+  id: 
+}

@@ -1,0 +1,22 @@
+meta {
+  name: POST /v1/practitioners/me/qualifications
+  type: http
+  seq: 27
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/qualifications
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "kind": "degree",
+    "title": "text",
+    "institution": "text",
+    "country": "text",
+    "year": 1,
+    "sortOrder": 0
+  }
+}

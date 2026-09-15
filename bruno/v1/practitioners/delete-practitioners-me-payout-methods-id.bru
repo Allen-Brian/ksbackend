@@ -1,0 +1,15 @@
+meta {
+  name: DELETE /v1/practitioners/me/payout-methods/{id}
+  type: http
+  seq: 24
+}
+
+delete {
+  url: {{baseUrl}}/v1/practitioners/me/payout-methods/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

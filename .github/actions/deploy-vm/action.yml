@@ -1,0 +1,79 @@
+name: Deploy to VM
+description: Ship deploy/compose.yml to the box and run deploy/deploy.sh over SSH for one stage.
+
+inputs:
+  stage:
+    description: dev | staging | prod
+    required: true
+  image-tag:
+    description: Immutable image tag to deploy (sha-xxxxxxx)
+    required: true
+  host:
+    required: true
+  user:
+    required: true
+  known-hosts:
+    description: ssh-keyscan output for the host — pins the server key.
+    required: true
+  ssh-key:
+    description: Private key for `user` (no passphrase).
+    required: true
+  ghcr-token:
+    description: Token with read:packages, used on the VM to pull the image.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: SSH client setup
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh-key }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        install -d -m 700 ~/.ssh
+        printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+        printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+        cat > ~/.ssh/config <<CFG
+        Host vm
+          HostName ${{ inputs.host }}
+          User ${{ inputs.user }}
+          IdentityFile ~/.ssh/deploy_key
+          IdentitiesOnly yes
+          StrictHostKeyChecking yes
+        CFG
+
+    - name: Ship compose file
+      shell: bash
+      run: scp -q deploy/compose.yml vm:/srv/kanasante/${{ inputs.stage }}/compose.yml
+
+    - name: Deploy
+      shell: bash
+      env:
+        GHCR_TOKEN: ${{ inputs.ghcr-token }}
+        GHCR_USER: ${{ github.actor }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+      run: |
+        # Secrets travel over stdin (never on the remote command line / in `ps`).
+        {
+          printf 'export GHCR_TOKEN=%q GHCR_USER=%q IMAGE_TAG=%q\n' "$GHCR_TOKEN" "$GHCR_USER" "$IMAGE_TAG"
+          cat deploy/deploy.sh
+        } | ssh vm bash -s -- "${{ inputs.stage }}"
+
+    - name: Smoke test (public URL)
+      # Advisory: the box-local /readyz check in deploy.sh is what gates success.
+      # This only warns, so a missing DNS record / cert doesn't mask a good deploy.
+      shell: bash
+      continue-on-error: true
+      run: |
+        case "${{ inputs.stage }}" in
+          dev) URL=https://dev-api.kanasante.com ;;
+          staging) URL=https://staging-api.kanasante.com ;;
+          prod) URL=https://api.kanasante.com ;;
+        esac
+        if curl -fsS --retry 5 --retry-delay 3 "$URL/readyz"; then
+          echo; echo "✓ $URL is serving ${{ inputs.image-tag }}"
+        else
+          echo "::warning::$URL not reachable publicly (DNS/TLS not set up yet?) — deploy on the box succeeded."
+          exit 1
+        fi

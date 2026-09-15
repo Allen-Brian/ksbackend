@@ -1,0 +1,11 @@
+meta {
+  name: Get the current patient's profile
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/patients/me/profile
+  body: none
+  auth: inherit
+}

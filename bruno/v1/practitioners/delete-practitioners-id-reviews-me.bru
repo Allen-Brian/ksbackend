@@ -1,0 +1,15 @@
+meta {
+  name: Delete your own review
+  type: http
+  seq: 37
+}
+
+delete {
+  url: {{baseUrl}}/v1/practitioners/:id/reviews/me
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Accept a caregiver invitation (activates the link)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/invitations/:token/accept
+  body: none
+  auth: inherit
+}
+
+params:path {
+  token: 
+}

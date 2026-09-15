@@ -1,0 +1,23 @@
+meta {
+  name: Add a dependent
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/dependents
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "surname": "Nkeng",
+    "givenNames": "Ariane",
+    "dateOfBirth": "2015-03-02",
+    "sex": "female",
+    "relationship": "child",
+    "phone": "+237650000000",
+    "location": "Bamenda, Cameroon"
+  }
+}

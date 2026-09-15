@@ -1,0 +1,18 @@
+meta {
+  name: Get a presigned URL to upload a verification document
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/me/documents/presign
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "kind": "cmc-certificate",
+    "contentType": "application/pdf"
+  }
+}

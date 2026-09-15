@@ -1,0 +1,22 @@
+# nginx site for one API stage. Rendered by deploy/bootstrap.sh with envsubst:
+#   SERVER_NAME=dev-api.kanasante.com  API_PORT=5100
+# TLS is added by certbot afterwards (`certbot --nginx -d $SERVER_NAME`), which
+# rewrites this file in place — so keep it minimal and let certbot own the 443 block.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${SERVER_NAME};
+
+    # Presigned S3 uploads bypass the API; the API body limit itself is 1 MB.
+    client_max_body_size 2m;
+
+    location / {
+        proxy_pass http://127.0.0.1:${API_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

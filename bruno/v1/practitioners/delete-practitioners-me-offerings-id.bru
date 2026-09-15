@@ -1,0 +1,15 @@
+meta {
+  name: DELETE /v1/practitioners/me/offerings/{id}
+  type: http
+  seq: 20
+}
+
+delete {
+  url: {{baseUrl}}/v1/practitioners/me/offerings/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

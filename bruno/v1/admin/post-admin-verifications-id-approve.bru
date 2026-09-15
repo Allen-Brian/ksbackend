@@ -1,0 +1,15 @@
+meta {
+  name: Approve a practitioner
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/admin/verifications/:id/approve
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

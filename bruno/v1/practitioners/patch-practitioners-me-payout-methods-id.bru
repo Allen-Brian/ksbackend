@@ -1,0 +1,25 @@
+meta {
+  name: PATCH /v1/practitioners/me/payout-methods/{id}
+  type: http
+  seq: 25
+}
+
+patch {
+  url: {{baseUrl}}/v1/practitioners/me/payout-methods/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "kind": "mtn_momo",
+    "accountName": "text",
+    "accountNumber": "text",
+    "bankName": "text",
+    "isDefault": false
+  }
+}

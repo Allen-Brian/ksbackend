@@ -1,0 +1,29 @@
+meta {
+  name: 6 · What other patients said
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id/reviews
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{practitionerId}}
+}
+
+tests {
+  test("the review list for the doctor's profile screen", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.data).to.be.an("array");
+  });
+}
+
+docs {
+  Deliberately a READ, not a POST: review creation is product-gated until
+  appointments exist (assertCanReview in src/modules/review/review.service.ts
+  always fails with REVIEW_NOT_ELIGIBLE). The reviews shown here come from
+  `bun run db:seed`. When appointments land, add a post-review step back.
+}

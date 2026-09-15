@@ -1,0 +1,22 @@
+meta {
+  name: Create or update your review of a practitioner
+  type: http
+  seq: 36
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/:id/reviews
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "rating": 5,
+    "comment": "Attentive and thorough."
+  }
+}

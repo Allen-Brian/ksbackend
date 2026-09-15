@@ -1,0 +1,30 @@
+meta {
+  name: Register the current user as a practitioner
+  type: http
+  seq: 39
+}
+
+post {
+  url: {{baseUrl}}/v1/practitioners/register
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "role": "doctor",
+    "professionId": "3f1a2b6c-8d4e-4f9a-b1c2-0d3e4f5a6b7c",
+    "prefix": "Dr.",
+    "surname": "Nkemtaji",
+    "givenNames": "Emmanuel",
+    "phone": "+237650000000",
+    "dateOfBirth": "1985-03-12",
+    "sex": "male",
+    "location": "Douala",
+    "consultationTypes": [
+      "in_person"
+    ],
+    "consentVersion": "2025-01",
+    "acceptTerms": true
+  }
+}

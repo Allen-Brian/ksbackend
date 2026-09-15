@@ -1,0 +1,11 @@
+meta {
+  name: Get the current user's base profile
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/v1/me/profile
+  body: none
+  auth: inherit
+}

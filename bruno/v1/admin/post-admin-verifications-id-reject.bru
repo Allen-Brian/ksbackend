@@ -1,0 +1,21 @@
+meta {
+  name: Reject a practitioner with a reason
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/admin/verifications/:id/reject
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "reason": "The uploaded CMC certificate is illegible; please re-upload a clear scan."
+  }
+}
