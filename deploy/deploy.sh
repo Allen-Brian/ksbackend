@@ -20,7 +20,11 @@ cd "$STAGE_DIR"
 # Pin the tag for this stage: compose reads IMAGE_TAG from .env, so the value
 # survives reboots (`restart: unless-stopped` re-creates from the same tag).
 sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=$IMAGE_TAG|" .env
-set -a; . ./.env; set +a
+# Read only what this script needs. Never `source` a dotenv file in bash —
+# values like `EMAIL_FROM=Name <addr>` are valid for compose but not for bash.
+envval() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | tr -d '\r'; }
+IMAGE="$(envval IMAGE)"; API_PORT="$(envval API_PORT)"
+: "${IMAGE:?IMAGE missing from .env}" "${API_PORT:?API_PORT missing from .env}"
 
 echo "==> [$STAGE] deploying $IMAGE:$IMAGE_TAG"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
