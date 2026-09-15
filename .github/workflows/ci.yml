@@ -100,7 +100,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push runtime image
+      - name: Build + push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -109,16 +109,6 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
             ${{ env.IMAGE }}:${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build + push migrate image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: migrate
-          push: true
-          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}-migrate
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -133,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: dev
-      url: https://dev-api.kanasante.com/doc
+      url: https://dev-api.kanasante.com/docs
     permissions:
       contents: read
       packages: read
@@ -157,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: https://staging-api.kanasante.com/doc
+      url: https://staging-api.kanasante.com/docs
     permissions:
       contents: read
       packages: read
@@ -181,7 +171,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: prod
-      url: https://api.kanasante.com/doc
+      url: https://api.kanasante.com/docs
     permissions:
       contents: read
       packages: read

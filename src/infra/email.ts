@@ -28,9 +28,17 @@ export type EmailClient = { readonly send: (message: EmailMessage) => Promise<vo
  * so `RESEND_BASE_URL=… bun run dev` works without setting it in config.
  */
 export const makeResendClient = (apiKey: string, from: string, baseUrl?: string): EmailClient => {
-  const resend = new Resend(apiKey, baseUrl !== undefined ? { baseUrl } : undefined);
+  // RESEND_API_KEY is only required in prod (.env.schema). Elsewhere an unset key
+  // must still let the server boot — the SDK constructor throws on "", so give it
+  // a sentinel and fail at send time with a message that names the real problem.
+  const unset = apiKey === "";
+  const resend = new Resend(
+    unset ? "re_unset" : apiKey,
+    baseUrl !== undefined ? { baseUrl } : undefined,
+  );
   return {
     send: async ({ to, subject, html }) => {
+      if (unset) throw new Error("RESEND_API_KEY is not set — email cannot be sent");
       const { error } = await resend.emails.send({ from, to, subject, html });
       if (error) throw new Error(error.message);
     },

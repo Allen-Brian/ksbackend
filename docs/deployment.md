@@ -28,9 +28,10 @@ verify ──▶ build ──▶ deploy-dev ──▶ deploy-staging (gated)
 
 - **verify** — lint · format · tsc · structure/import-boundaries · migration drift · unit+api
   tests · integration tests (Testcontainers). Unchanged from before; PRs run only this.
-- **build** — two images from one `Dockerfile`: `runtime` (lean) and `migrate` (has drizzle-kit).
-  Pushed to `ghcr.io/kanasante/api` as `sha-<short>` / `sha-<short>-migrate` (immutable) plus a
-  moving `main` (or the tag name).
+- **build** — one image from the `Dockerfile`, pushed to `ghcr.io/kanasante/api` as `sha-<short>`
+  (immutable) plus a moving `main` (or the tag name). Migrations run from this same image via
+  `src/migrate.ts` (drizzle-orm's migrator over the committed `drizzle/` folder — no drizzle-kit
+  in production, which keeps the image ~500 MB on a 6.7 GB disk).
 - **deploy-\*** — the composite action `.github/actions/deploy-vm`: `scp deploy/compose.yml`
   to `/srv/kanasante/<stage>/`, stream `deploy/deploy.sh` over SSH (secrets on stdin, never
   argv), then smoke-test the public `/readyz`.
@@ -53,6 +54,8 @@ images. A failed migration or an unhealthy container leaves the **previous** con
 - `deploy` = unprivileged system user CI logs in as (docker group, **no sudo**). Its authorized
   key is `deploy/ci-deploy-key.pub`; the private half is the `DEPLOY_SSH_KEY` repo secret.
 - Log rotation: Docker `json-file` capped at 3×10 MB per container (the root disk is 6.7 GB).
+- Disk: `deploy.sh` prunes every image not backing a running container before _and_ after a pull,
+  so at most two API images exist at once.
 
 ## Bootstrapping a stage (one-time, needs sudo)
 
@@ -93,9 +96,8 @@ or re-run the earlier successful workflow run from the Actions tab. Migrations a
 
 **Seeding demo accounts** on dev (for the Bruno collection): add the `DEMO_*` variables to
 `/srv/kanasante/dev/.env`, then
-`docker compose run --rm migrate bunx varlock run -- bun scripts/seed.ts` — note the `migrate`
-image does not contain `scripts/`, so this needs a checkout mounted:
-`docker compose run --rm -v "$PWD/scripts:/app/scripts" migrate bunx varlock run -- bun scripts/seed.ts`.
+`docker compose run --rm -v "$PWD/scripts:/app/scripts" migrate bunx varlock run -- bun scripts/seed.ts`
+(the image does not ship `scripts/`, so it's mounted from a checkout).
 
 ## Known limits of this setup
 

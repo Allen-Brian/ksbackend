@@ -28,6 +28,9 @@ IMAGE="$(envval IMAGE)"; API_PORT="$(envval API_PORT)"
 
 echo "==> [$STAGE] deploying $IMAGE:$IMAGE_TAG"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+# Small disk: drop every image not backing a running container BEFORE pulling,
+# so the new image only has to fit next to the one currently serving.
+docker image prune -af >/dev/null
 docker compose pull --quiet
 docker compose up -d db
 docker compose run --rm -T migrate
@@ -36,7 +39,7 @@ docker compose up -d --remove-orphans api
 echo "==> waiting for /readyz on 127.0.0.1:$API_PORT"
 for i in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$API_PORT/readyz" >/dev/null; then
-    echo "ready after ${i}s"; docker image prune -f >/dev/null; docker logout ghcr.io >/dev/null
+    echo "ready after ${i}s"; docker image prune -af >/dev/null; docker logout ghcr.io >/dev/null
     exit 0
   fi
   sleep 1

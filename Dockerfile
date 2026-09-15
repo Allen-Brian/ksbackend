@@ -5,33 +5,16 @@
 # APP_ENV defaults to prod here (fail-loud on missing secrets); the deploy
 # compose file overrides it per stage (dev / staging / prod). See docs/deployment.md.
 #
-# Two targets share one build:
-#   runtime (default) — lean, production deps only, runs the server.
-#   migrate           — full deps (drizzle-kit is a devDependency), runs the
-#                       committed migrations once. Same tag with a `-migrate`
-#                       suffix; invoked as a one-shot release step before the
-#                       new runtime container is started.
-
-FROM oven/bun:1.3-slim AS deps-full
-WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+# One image serves both roles — the deploy runs migrations as a one-shot
+# container from this same image before starting the server:
+#   server:      bunx varlock run -- bun src/server.ts   (default CMD)
+#   migrations:  bunx varlock run -- bun src/migrate.ts  (drizzle-orm migrator,
+#                no drizzle-kit needed; reads the committed ./drizzle folder)
 
 FROM oven/bun:1.3-slim AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
-
-FROM oven/bun:1.3-slim AS migrate
-WORKDIR /app
-ENV NODE_ENV=production
-ENV APP_ENV=prod
-COPY --from=deps-full /app/node_modules ./node_modules
-COPY package.json .env.schema drizzle.config.ts ./
-COPY drizzle ./drizzle
-COPY src/db ./src/db
-USER bun
-CMD ["bunx", "varlock", "run", "--", "drizzle-kit", "migrate"]
 
 FROM oven/bun:1.3-slim AS runtime
 WORKDIR /app
@@ -39,7 +22,12 @@ ENV NODE_ENV=production
 ENV APP_ENV=prod
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json .env.schema ./
+# tsconfig.json is needed at runtime: Bun resolves the `@/` path alias from it.
+COPY package.json tsconfig.json .env.schema ./
+# The schema's TS-types codegen is a dev-time concern; inside the (read-only,
+# non-root) container it would try to write env.d.ts and fail.
+RUN sed -i '/@generateTsTypes/d' .env.schema
+COPY drizzle ./drizzle
 COPY src ./src
 
 USER bun

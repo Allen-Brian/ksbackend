@@ -39,9 +39,11 @@ services:
         limits: { memory: 512m }
 
   # One-shot: `docker compose run --rm migrate` (deploy.sh does this before
-  # starting the new api). Not started by `up` thanks to the profile.
+  # starting the new api). Same image as `api`, different entrypoint; the
+  # profile keeps `up` from starting it.
   migrate:
-    image: ${IMAGE:?set in .env}:${IMAGE_TAG:?set by CI}-migrate
+    image: ${IMAGE:?set in .env}:${IMAGE_TAG:?set by CI}
+    command: ["bunx", "varlock", "run", "--", "bun", "src/migrate.ts"]
     profiles: [migrate]
     <<: *logging
     env_file: .env
