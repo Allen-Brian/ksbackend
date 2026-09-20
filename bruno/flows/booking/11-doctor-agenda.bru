@@ -1,0 +1,32 @@
+meta {
+  name: 11 · The doctor's agenda for that day
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/me/agenda?date={{agendaDate}}
+  body: none
+  auth: inherit
+}
+
+script:pre-request {
+  // The agenda is keyed by calendar day in the practice timezone (Africa/Douala, UTC+1,
+  // no DST): shift the UTC start by one hour and keep the date part.
+  const startsAt = bru.getVar("slotStartsAt");
+  const douala = new Date(new Date(startsAt).getTime() + 3600000);
+  bru.setVar("agendaDate", douala.toISOString().slice(0, 10));
+}
+
+tests {
+  test("the booking shows up on the doctor's day, with patient + booker names", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.meta.date).to.equal(bru.getVar("agendaDate"));
+    const ids = res.body.data.map(function (entry) { return entry.id; });
+    expect(ids).to.include(bru.getVar("appointmentId"));
+    const entry = res.body.data.find(function (e) { return e.id === bru.getVar("appointmentId"); });
+    expect(entry.status).to.equal("confirmed");
+    expect(entry.patient.displayName).to.be.a("string");
+    expect(entry.booker.displayName).to.be.a("string");
+  });
+}

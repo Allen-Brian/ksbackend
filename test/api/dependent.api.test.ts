@@ -78,6 +78,65 @@ describe("dependents API (real DB)", () => {
     expect((await json<{ givenNames: string }>(noop)).givenNames).toBe("Petit");
   });
 
+  it("stores a local emergency contact: create -> replace -> clear", async () => {
+    type EmergencyContact = { name: string; phone: string; relationship: string };
+    type WithContact = { id: string; emergencyContact: EmergencyContact | null };
+    const grandmother: EmergencyContact = {
+      name: "Mama Nkeng",
+      phone: "+237699000000",
+      relationship: "Grandmother",
+    };
+    const uncle: EmergencyContact = {
+      name: "Tonton Nkeng",
+      phone: "+237677000000",
+      relationship: "Uncle",
+    };
+    const patchContact = (id: string, emergencyContact: EmergencyContact | null) =>
+      harness.app.request(`/v1/dependents/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: ownerCookie },
+        body: JSON.stringify({ emergencyContact }),
+      });
+    const read = async (id: string) =>
+      json<WithContact>(
+        await harness.app.request(`/v1/dependents/${id}`, { headers: { cookie: ownerCookie } }),
+      );
+
+    const created = await harness.post(
+      "/v1/dependents",
+      { ...newDependent, emergencyContact: grandmother },
+      ownerCookie,
+    );
+    expect(created.status).toBe(201);
+    const { id, emergencyContact } = await json<WithContact>(created);
+    expect(emergencyContact).toEqual(grandmother);
+    expect((await read(id)).emergencyContact).toEqual(grandmother);
+
+    const replaced = await patchContact(id, uncle);
+    expect(replaced.status).toBe(200);
+    expect((await json<WithContact>(replaced)).emergencyContact).toEqual(uncle);
+
+    // A patch that doesn't mention the contact leaves it alone.
+    const unrelated = await harness.app.request(`/v1/dependents/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie: ownerCookie },
+      body: JSON.stringify({ location: "Douala" }),
+    });
+    expect(unrelated.status).toBe(200);
+    expect((await read(id)).emergencyContact).toEqual(uncle);
+
+    const cleared = await patchContact(id, null);
+    expect(cleared.status).toBe(200);
+    expect((await json<WithContact>(cleared)).emergencyContact).toBeNull();
+    expect((await read(id)).emergencyContact).toBeNull();
+  });
+
+  it("a dependent created without an emergency contact reports null", async () => {
+    const created = await harness.post("/v1/dependents", newDependent, ownerCookie);
+    expect(created.status).toBe(201);
+    expect((await json<{ emergencyContact: unknown }>(created)).emergencyContact).toBeNull();
+  });
+
   it("a different account holder cannot see another's dependent", async () => {
     const created = await harness.post("/v1/dependents", newDependent, ownerCookie);
     const { id } = await json<{ id: string }>(created);

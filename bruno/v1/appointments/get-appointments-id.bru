@@ -1,0 +1,23 @@
+meta {
+  name: Get one appointment
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/appointments/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+docs {
+  Visible to the booker, to the linked dependent it was booked for, and to the
+  practitioner; anyone else gets a 404 (never a 403 — existence is not leaked).
+
+  `status` is derived at read time: a `held` appointment whose `holdExpiresAt` has
+  passed is reported as `expired` even though nothing swept it.
+}

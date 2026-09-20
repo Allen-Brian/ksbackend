@@ -1,6 +1,7 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import { Clock, Context, Effect, Layer } from "effect";
-import type { Patient, PatientProfileInput } from "@/domain/patient/patient";
+import type { Patient, PatientProfileInput, PatientProfilePatch } from "@/domain/patient/patient";
+import { NotFound } from "@/domain/shared/errors";
 import { IdGenerator } from "@/infra/ids";
 import { ProfileRepo } from "@/modules/profile/profile.repo";
 import { PatientRepo } from "./patient.repo";
@@ -11,6 +12,11 @@ export interface PatientServiceService {
     userId: string,
     input: PatientProfileInput,
   ) => Effect.Effect<Patient, SqlError.SqlError>;
+  /** Edit patient-only data (emergency contact) without re-accepting terms. */
+  readonly updateProfile: (
+    userId: string,
+    patch: PatientProfilePatch,
+  ) => Effect.Effect<Patient, NotFound | SqlError.SqlError>;
   /** Self-grant the patient role (any user can become a care recipient). */
   readonly claimRole: (userId: string) => Effect.Effect<void, SqlError.SqlError>;
 }
@@ -51,11 +57,27 @@ export const PatientServiceLive = Layer.effect(
                 consentAcceptedAt: now,
                 consentVersion: input.consentVersion,
               });
-              yield* repo.upsert(patientId, userId, input.emergencyContact ?? null, now);
+              // `undefined` is passed through on purpose: an omitted contact must
+              // not clear one that was saved earlier.
+              yield* repo.upsert(patientId, userId, input.emergencyContact, now);
             }),
           );
           const saved = yield* repo.findByUserId(userId);
           return saved ?? (yield* Effect.dieMessage("patient missing after upsert"));
+        }),
+
+      updateProfile: (userId, patch) =>
+        Effect.gen(function* () {
+          const existing = yield* repo.findByUserId(userId);
+          if (existing === undefined) {
+            return yield* Effect.fail(new NotFound({ resource: "Patient profile" }));
+          }
+          if (patch.emergencyContact !== undefined) {
+            const now = new Date(yield* Clock.currentTimeMillis);
+            yield* repo.updateEmergencyContact(userId, patch.emergencyContact, now);
+          }
+          const saved = yield* repo.findByUserId(userId);
+          return saved ?? (yield* Effect.dieMessage("patient missing after update"));
         }),
 
       claimRole: (userId) =>

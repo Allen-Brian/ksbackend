@@ -1,0 +1,54 @@
+meta {
+  name: Hold a slot (start checkout)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "practitionerId": "0198e3f0-3000-7000-8000-000000000010",
+    "slotKey": "rule:0198e3f0-3000-7000-8000-000000000001:2026-10-05T08:00:00.000Z",
+    "startsAt": "2026-10-05T08:00:00.000Z",
+    "consultationType": "in_person",
+    "offeringId": "0198e3f0-3000-7000-8000-000000000020",
+    "locationId": null,
+    "preferredLanguage": "fr"
+  }
+}
+
+docs {
+  Step 1 of the two-step booking: hold → confirm.
+
+  Pick a slot from `GET /v1/practitioners/{id}/availability` and send back its `key`
+  and `startsAt` verbatim (`slotKey` looks like `rule:<ruleId>:<isoStart>`,
+  `exception:…` or `explicit:…`). `offeringId` is one of the practitioner's active
+  offerings from the public profile (`offerings[]`); `locationId` may stay null when
+  the slot already carries a location. `preferredLanguage` must be one the
+  practitioner speaks.
+
+  201 → a `held` appointment with `holdExpiresAt` (10 min by default). Confirm it with
+  `POST /v1/appointments/{id}/confirm` before then, or the hold lapses and is reported
+  as `expired`.
+
+  To book for someone else add exactly one of `dependentId` (a managed dependent) or
+  `subjectUserId` (a linked account holder); both together is a 422.
+
+  Failure outcomes worth demoing:
+  - 409 `SLOT_UNAVAILABLE` — another patient holds/booked that time, or your calendar view
+    was stale (the slot is re-derived from the live schedule).
+  - 409 `PROFILE_INCOMPLETE` — booking for yourself needs a completed patient profile.
+  - 409 `BOOKING_LIMIT_REACHED` — one account may hold/confirm at most 10 upcoming
+    appointments at a time (`APPOINTMENT_MAX_LIVE_PER_BOOKER`).
+  - Re-sending the same hold (same slot, same subject) returns the SAME appointment —
+    its `holdExpiresAt` is never extended. Bookings open 60 days ahead (422 beyond).
+  - 403 `NOT_A_CAREGIVER` — on-behalf booking without an active caregiver link.
+  - 422 — offering/location/language don't match the practitioner or consultation type.
+
+  For a zero-config end-to-end run, use flows/booking instead of this catalog file.
+}

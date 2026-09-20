@@ -1,0 +1,28 @@
+meta {
+  name: The practitioner's daily agenda
+  type: http
+  seq: 40
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/me/agenda
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~date: 2026-10-05
+}
+
+docs {
+  The doctor's day: confirmed appointments plus unexpired holds (labelled `held`), in
+  start order, each with the offering (duration + price), the practice location, who
+  the consultation is for (`patient.displayName` — self, managed dependent or linked
+  dependent) and who booked it (`booker.displayName`).
+
+  `date` is a calendar day in the practice timezone (Africa/Douala, UTC+1) and defaults
+  to today. `meta.from` / `meta.to` echo the UTC window that day maps to.
+
+  Requires the doctor/nurse role (403 otherwise); 404 when the user has no
+  practitioner profile yet.
+}

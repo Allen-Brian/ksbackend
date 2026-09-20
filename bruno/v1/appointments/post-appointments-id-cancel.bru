@@ -1,0 +1,28 @@
+meta {
+  name: Cancel an appointment you booked
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments/:id/cancel
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+docs {
+  Cancels a `held` or `confirmed` appointment and frees the slot immediately, so it
+  shows up again in `GET /v1/practitioners/{id}/availability`. Only the booker can
+  cancel (practitioner-side cancellation and rescheduling are a later story).
+
+  Idempotent on an already-cancelled appointment (200).
+
+  - 409 `HOLD_EXPIRED` — the hold had already lapsed; nothing to cancel.
+  - 409 `CANCELLATION_WINDOW_CLOSED` — inside `APPOINTMENT_CANCEL_CUTOFF_HOURS`
+    (unset locally, so cancellation is allowed any time before the start).
+  - 404 — no such appointment booked by the caller.
+}

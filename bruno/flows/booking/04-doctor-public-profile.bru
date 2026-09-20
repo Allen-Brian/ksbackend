@@ -1,0 +1,39 @@
+meta {
+  name: 4 · Open the doctor's profile, pick the in-person consultation
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{practitionerId}}
+}
+
+script:post-response {
+  const offerings = (res.body && res.body.offerings) || [];
+  const offering =
+    offerings.find(function (o) { return o.consultationType === "in_person" && o.active; }) ||
+    offerings[0];
+  if (offering) {
+    bru.setVar("offeringId", offering.id);
+  }
+}
+
+tests {
+  test("the bookable profile lists at least one consultation offering", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.offerings).to.be.an("array").that.is.not.empty;
+    expect(res.body.offerings[0].id).to.be.a("string");
+  });
+}
+
+docs {
+  `offerings[]` is what sets the consultation's duration and price; the patient picks
+  one and its id travels in the hold request. The seeded doctor has a single
+  `in_person` 30-minute offering.
+}

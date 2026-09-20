@@ -16,6 +16,15 @@ const dateAtTime = (date: string, time: string): Date => {
 const dateKey = (instant: Date): string =>
   new Date(instant.getTime() + DOUALA_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
 
+/** The calendar date (YYYY-MM-DD) an instant falls on in the schedule timezone (Africa/Douala). */
+export const scheduleDateKey = dateKey;
+
+/** The half-open UTC window [midnight, next midnight) of a schedule-timezone calendar date. */
+export const scheduleDayWindow = (date: string) => {
+  const from = dateAtTime(date, "00:00");
+  return { from, to: new Date(from.getTime() + 86_400_000) };
+};
+
 const weekday = (date: string): number => new Date(Date.parse(`${date}T00:00:00.000Z`)).getUTCDay();
 
 const endAtTime = (date: string, startTime: string, endTime: string): Date => {
@@ -36,10 +45,14 @@ const datesBetween = (from: Date, to: Date): ReadonlyArray<string> => {
   return result;
 };
 
+export type ReservedWindow = { readonly startsAt: Date; readonly endsAt: Date };
+
 export type ExpandScheduleInput = {
   readonly rules: ReadonlyArray<AvailabilityRule>;
   readonly exceptions: ReadonlyArray<AvailabilityException>;
   readonly explicitSlots: ReadonlyArray<AvailabilitySlot>;
+  /** Time already taken by live appointments (held or confirmed) — never offered. */
+  readonly reserved: ReadonlyArray<ReservedWindow>;
   readonly from: Date;
   readonly to: Date;
   readonly now: Date;
@@ -112,7 +125,10 @@ export const expandSchedule = (
     });
   }
 
-  const unavailable = input.explicitSlots.filter((slot) => slot.status !== "open");
+  const unavailable = [
+    ...input.explicitSlots.filter((slot) => slot.status !== "open"),
+    ...input.reserved,
+  ];
   const candidates = generated
     .filter(
       (slot) => slot.startsAt > input.now && slot.startsAt >= input.from && slot.endsAt <= input.to,

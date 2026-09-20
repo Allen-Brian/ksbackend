@@ -6,7 +6,11 @@ import type { AppEnv, AppRuntime } from "@/http/app-env";
 import { makeRun } from "@/http/run";
 import { ErrorResponse } from "@/http/schemas";
 import { CurrentUser } from "@/infra/auth";
-import { CompletePatientProfileBody, PatientProfileResponse } from "./patient.contract";
+import {
+  CompletePatientProfileBody,
+  PatientProfileResponse,
+  UpdatePatientProfileBody,
+} from "./patient.contract";
 import { PatientService } from "./patient.service";
 
 const jsonBody = <T>(schema: T) => ({ content: { "application/json": { schema } } });
@@ -74,6 +78,35 @@ const getProfile = createRoute({
   },
 });
 
+const updateProfile = createRoute({
+  method: "patch",
+  path: "/v1/patients/me/profile",
+  tags: ["Patients"],
+  summary: "Update the current patient's emergency contact",
+  description: [
+    "Edits the patient-only part of the signed-in user's profile — currently the emergency",
+    "contact — without re-accepting the terms. Unlike `POST /v1/patients/me/profile`, this never",
+    "re-stamps consent and requires no `acceptTerms`/`consentVersion`. Send an `emergencyContact`",
+    "object to replace the stored contact, explicit `null` to clear it, or an empty body `{}` to",
+    "leave it untouched (the current profile is returned either way). Base identity fields (name,",
+    "phone, DOB, sex) are edited via `PATCH /v1/me/profile`. Returns `404` until the profile has",
+    "been completed, so route the user into patient onboarding on a `404`.",
+  ].join(" "),
+  request: { body: jsonBody(UpdatePatientProfileBody) },
+  responses: {
+    200: { ...jsonBody(PatientProfileResponse), description: "The updated patient profile." },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    404: {
+      ...jsonBody(ErrorResponse),
+      description: "The user hasn't completed a patient profile yet.",
+    },
+    422: {
+      ...jsonBody(ErrorResponse),
+      description: "A field failed validation (e.g. a non-E.164 emergency contact phone).",
+    },
+  },
+});
+
 const claimRole = createRoute({
   method: "post",
   path: "/v1/me/roles/patient",
@@ -127,6 +160,21 @@ export const registerPatientRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRunt
           return yield* Effect.fail(new NotFound({ resource: "Patient profile" }));
         }
         return c.json(toResponse(found), 200);
+      }),
+    ),
+  );
+
+  app.openapi(updateProfile, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* PatientService;
+        const body = c.req.valid("json");
+        const saved = yield* service.updateProfile(user.id, {
+          emergencyContact: body.emergencyContact,
+        });
+        return c.json(toResponse(saved), 200);
       }),
     ),
   );

@@ -30,6 +30,7 @@ const toResponse = (d: Dependent) => ({
   relationship: d.relationship,
   phone: d.phone,
   location: d.location,
+  emergencyContact: d.emergencyContact,
 });
 
 const create = createRoute({

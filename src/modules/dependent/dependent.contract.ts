@@ -20,6 +20,44 @@ const relationship = z.enum(["child", "parent", "spouse", "sibling", "other"]).o
   example: "child",
 });
 
+/** Request-side emergency contact: someone local to the dependent, reachable in an emergency. */
+const EmergencyContactInput = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(120)
+    .openapi({ description: "Full name of the emergency contact.", example: "Mama Nkeng" }),
+  phone: z
+    .string()
+    .regex(/^\+[1-9]\d{6,14}$/, "Phone must be E.164")
+    .openapi({
+      description: "Emergency contact's phone in E.164 format.",
+      example: "+237699000000",
+    }),
+  relationship: z.string().min(1).max(60).openapi({
+    description: "How this contact relates to the dependent.",
+    example: "Grandmother",
+  }),
+});
+
+/** Response-side emergency contact, or null when none is stored. */
+const EmergencyContactOutput = z
+  .object({
+    name: z
+      .string()
+      .openapi({ description: "Full name of the emergency contact.", example: "Mama Nkeng" }),
+    phone: z.string().openapi({
+      description: "Emergency contact's phone in E.164.",
+      example: "+237699000000",
+    }),
+    relationship: z.string().openapi({
+      description: "How this contact relates to the dependent.",
+      example: "Grandmother",
+    }),
+  })
+  .nullable()
+  .openapi({ description: "The stored emergency contact, or null if none has been set." });
+
 export const CreateDependentBody = z
   .object({
     surname: z.string().min(1).max(120).openapi({ description: "Family name.", example: "Nkeng" }),
@@ -39,6 +77,10 @@ export const CreateDependentBody = z
       .max(200)
       .optional()
       .openapi({ description: "Free-text town/region (optional).", example: "Bamenda, Cameroon" }),
+    emergencyContact: EmergencyContactInput.optional().openapi({
+      description:
+        "Who to reach locally in an emergency — the caregiver is often abroad, so this should be someone near the dependent. Optional.",
+    }),
   })
   .openapi("CreateDependent");
 
@@ -71,6 +113,10 @@ export const UpdateDependentBody = z
       description: "Free-text town/region — updates the dependent person.",
       example: "Bamenda, Cameroon",
     }),
+    emergencyContact: EmergencyContactInput.nullable().optional().openapi({
+      description:
+        "Local emergency contact — updates the dependent person. Send an object to replace it, explicit `null` to clear it, or omit the field to leave it untouched.",
+    }),
   })
   .openapi("UpdateDependent");
 
@@ -95,6 +141,7 @@ export const DependentResponse = z
       .string()
       .nullable()
       .openapi({ description: "Free-text town/region, or null.", example: "Bamenda, Cameroon" }),
+    emergencyContact: EmergencyContactOutput,
   })
   .openapi("Dependent");
 

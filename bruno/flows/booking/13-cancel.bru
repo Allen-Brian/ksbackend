@@ -1,0 +1,29 @@
+meta {
+  name: 13 · Cancel — leave the calendar as we found it
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments/:id/cancel
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{appointmentId}}
+}
+
+tests {
+  test("cancelled — the slot is free again and the seed data is untouched", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.id).to.equal(bru.getVar("appointmentId"));
+    expect(res.body.status).to.equal("cancelled");
+  });
+}
+
+docs {
+  Only the booker can cancel. Doing it last makes the flow re-runnable: the slot goes
+  back into `GET /v1/practitioners/{id}/availability`, so the next run holds the very
+  same first slot again.
+}

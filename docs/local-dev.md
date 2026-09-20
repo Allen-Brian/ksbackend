@@ -152,6 +152,17 @@ requests, so it requires no manual variable entry. The equivalent headless check
 bun run bruno:demo   # also writes bruno-report.html
 ```
 
+`flows/booking` is the second story: the appointment lifecycle. The doctor signs in so the flow
+can learn her practitioner id, then the patient signs in, opens her profile, reads the next two
+weeks of open slots, **holds** the first one (`POST /v1/appointments` → `held`), **confirms** it,
+sees it under `GET /v1/me/appointments`, the doctor sees it on that day's
+`GET /v1/practitioners/me/agenda`, and finally the patient cancels — so the seed data is left
+exactly as it was and the folder can be re-run at will. Expect 13 green requests:
+
+```bash
+bun run bruno:booking   # same report file
+```
+
 Do not start with `v1/` for the one-click demo. That tree is the exhaustive endpoint catalog;
 blank path parameters such as `id` and `token` are intentionally left for the concrete resource
 you want when running an individual request.
@@ -162,8 +173,10 @@ you want when running an individual request.
 - **`bruno/flows/demo/`** is a curated, numbered story — patient signs in → searches → opens a
   doctor → availability → reviews → doctor side → admin verification queue. One click on the
   folder in Bruno's Runner (or headless: `bun run bruno:demo`, which writes `bruno-report.html`,
-  a shareable run report).
-- **`bruno/v1/`** holds one request per OpenAPI operation, foldered by resource. It is generated
+  a shareable run report). **`bruno/flows/booking/`** is the same idea for booking: hold →
+  confirm → both sides see it → cancel (`bun run bruno:booking`).
+- **`bruno/v1/`** holds one request per OpenAPI operation, foldered by resource (`appointments/`
+  carries the hold/confirm/cancel catalog entries with the 409 outcomes documented). It is generated
   by `bun run bruno:scaffold` and ENFORCED by `test/api/bruno-coverage.api.test.ts` (part of
   `bun run test`): a new endpoint without a Bruno request fails the build — run the scaffold and
   commit the new file (existing files are never overwritten, so hand-tuned bodies survive).

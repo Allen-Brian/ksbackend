@@ -33,6 +33,9 @@ type HarnessConfig = {
   readonly RATE_LIMIT_MAX?: string;
   readonly RATE_LIMIT_WINDOW_SECONDS?: string;
   readonly PLATFORM_COMMISSION_BPS?: string;
+  readonly APPOINTMENT_HOLD_TTL_MINUTES?: string;
+  readonly APPOINTMENT_CANCEL_CUTOFF_HOURS?: string;
+  readonly APPOINTMENT_MAX_LIVE_PER_BOOKER?: string;
 };
 
 // A scan-aware fake: any file key containing "infected" reports infected, so the

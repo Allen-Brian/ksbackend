@@ -1,0 +1,29 @@
+meta {
+  name: 7 · Confirm before the hold expires
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments/:id/confirm
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{appointmentId}}
+}
+
+tests {
+  test("the appointment is confirmed and the hold window is gone", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.id).to.equal(bru.getVar("appointmentId"));
+    expect(res.body.status).to.equal("confirmed");
+    expect(res.body.holdExpiresAt).to.equal(null);
+  });
+}
+
+docs {
+  Payment authorization will slot in here once payments ship; today confirmation is
+  immediate. Waiting past `holdExpiresAt` would have turned this into 409 HOLD_EXPIRED.
+}

@@ -1,7 +1,8 @@
 import { SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { and, asc, desc, eq, gt, gte, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, lt, lte, not, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
+import { appointment } from "@/db/schema/appointment";
 import { availabilityException } from "@/db/schema/availability-exception";
 import { availabilityRule } from "@/db/schema/availability-rule";
 import { availabilitySlot } from "@/db/schema/availability-slot";
@@ -11,6 +12,7 @@ import type {
   AvailabilityRule,
   AvailabilitySlot,
 } from "@/domain/availability/availability";
+import type { ReservedWindow } from "@/domain/availability/schedule";
 import type { ConsultationType } from "@/domain/practitioner/practitioner";
 
 type Row = typeof availabilitySlot.$inferSelect;
@@ -118,7 +120,27 @@ export interface AvailabilityRepoService {
     from: Date,
     to: Date,
   ) => Effect.Effect<ReadonlyArray<AvailabilitySlot>, SqlError.SqlError>;
+  /**
+   * Time windows occupied by live appointments (confirmed, or held with an
+   * unexpired hold as of `now`) that intersect [from, to). `exceptOwnHold`
+   * ignores that booker's live hold on `startsAt` for that care subject, so a
+   * retry of their own checkout sees the slot as free.
+   */
+  readonly listReservedWindows: (
+    practitionerProfileId: string,
+    from: Date,
+    to: Date,
+    now: Date,
+    exceptOwnHold?: OwnHold,
+  ) => Effect.Effect<ReadonlyArray<ReservedWindow>, SqlError.SqlError>;
 }
+
+export type OwnHold = {
+  readonly bookerUserId: string;
+  readonly dependentId: string | null;
+  readonly subjectUserId: string | null;
+  readonly startsAt: Date;
+};
 
 export class AvailabilityRepo extends Context.Tag("AvailabilityRepo")<
   AvailabilityRepo,
@@ -318,6 +340,38 @@ export const AvailabilityRepoLive = Layer.effect(
           )
           .orderBy(asc(availabilitySlot.startsAt))
           .pipe(Effect.map((rows) => rows.map(toDomain))),
+
+      // Keep the liveness rule in sync with `isLive` in domain/appointment.
+      listReservedWindows: (practitionerProfileId, from, to, now, exceptOwnHold) =>
+        db
+          .select({ startsAt: appointment.startsAt, endsAt: appointment.endsAt })
+          .from(appointment)
+          .where(
+            and(
+              eq(appointment.practitionerProfileId, practitionerProfileId),
+              lt(appointment.startsAt, to),
+              gt(appointment.endsAt, from),
+              or(
+                eq(appointment.status, "confirmed"),
+                and(eq(appointment.status, "held"), gt(appointment.holdExpiresAt, now)),
+              ),
+              exceptOwnHold === undefined
+                ? undefined
+                : not(
+                    and(
+                      eq(appointment.status, "held"),
+                      eq(appointment.bookerUserId, exceptOwnHold.bookerUserId),
+                      eq(appointment.startsAt, exceptOwnHold.startsAt),
+                      exceptOwnHold.dependentId === null
+                        ? isNull(appointment.dependentId)
+                        : eq(appointment.dependentId, exceptOwnHold.dependentId),
+                      exceptOwnHold.subjectUserId === null
+                        ? isNull(appointment.subjectUserId)
+                        : eq(appointment.subjectUserId, exceptOwnHold.subjectUserId),
+                    ) ?? sql`false`,
+                  ),
+            ),
+          ),
     } satisfies AvailabilityRepoService;
   }),
 );

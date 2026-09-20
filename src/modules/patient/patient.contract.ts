@@ -9,31 +9,48 @@ const phone = z
     example: "+237650000000",
   });
 
-const emergencyContact = z
+/** Request-side emergency contact (validated fields). */
+const EmergencyContactInput = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(120)
+    .openapi({ description: "Full name of the emergency contact.", example: "Ngo Mbeki" }),
+  phone: z
+    .string()
+    .regex(/^\+[1-9]\d{6,14}$/, "Phone must be E.164")
+    .openapi({
+      description: "Emergency contact's phone in E.164 format.",
+      example: "+237699000000",
+    }),
+  relationship: z
+    .string()
+    .min(1)
+    .max(60)
+    .openapi({ description: "How this contact relates to the patient.", example: "Sister" }),
+});
+
+/** Response-side emergency contact, or null when none is stored. */
+const EmergencyContactOutput = z
   .object({
     name: z
       .string()
-      .min(1)
-      .max(120)
       .openapi({ description: "Full name of the emergency contact.", example: "Ngo Mbeki" }),
-    phone: z
-      .string()
-      .regex(/^\+[1-9]\d{6,14}$/, "Phone must be E.164")
-      .openapi({
-        description: "Emergency contact's phone in E.164 format.",
-        example: "+237699000000",
-      }),
+    phone: z.string().openapi({
+      description: "Emergency contact's phone in E.164.",
+      example: "+237699000000",
+    }),
     relationship: z
       .string()
-      .min(1)
-      .max(60)
       .openapi({ description: "How this contact relates to the patient.", example: "Sister" }),
   })
-  .optional()
-  .openapi({
-    description:
-      "Who to reach in an emergency. Optional — omit it and any existing contact is left untouched.",
-  });
+  .nullable()
+  .openapi({ description: "The stored emergency contact, or null if none has been set." });
+
+const emergencyContact = EmergencyContactInput.optional().openapi({
+  description:
+    "Who to reach in an emergency. Optional — omit it and any existing contact is left untouched.",
+});
 
 export const CompletePatientProfileBody = z
   .object({
@@ -63,6 +80,15 @@ export const CompletePatientProfileBody = z
   })
   .openapi("CompletePatientProfile");
 
+export const UpdatePatientProfileBody = z
+  .object({
+    emergencyContact: EmergencyContactInput.nullable().optional().openapi({
+      description:
+        "Who to reach in an emergency. Send an object to replace the stored contact, explicit `null` to clear it, or omit the field to leave it untouched.",
+    }),
+  })
+  .openapi("UpdatePatientProfile");
+
 export const PatientProfileResponse = z
   .object({
     id: z.uuid().openapi({ description: "Patient profile id (distinct from the user id)." }),
@@ -81,20 +107,6 @@ export const PatientProfileResponse = z
       .enum(["male", "female"])
       .nullable()
       .openapi({ description: "Biological sex on record, or null.", example: "female" }),
-    emergencyContact: z
-      .object({
-        name: z
-          .string()
-          .openapi({ description: "Full name of the emergency contact.", example: "Ngo Mbeki" }),
-        phone: z.string().openapi({
-          description: "Emergency contact's phone in E.164.",
-          example: "+237699000000",
-        }),
-        relationship: z
-          .string()
-          .openapi({ description: "How this contact relates to the patient.", example: "Sister" }),
-      })
-      .nullable()
-      .openapi({ description: "The stored emergency contact, or null if none has been set." }),
+    emergencyContact: EmergencyContactOutput,
   })
   .openapi("PatientProfile");

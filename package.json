@@ -29,6 +29,7 @@
     "db:migrate:runtime": "varlock run -- bun src/migrate.ts",
     "bruno:scaffold": "bun scripts/scaffold-bruno.ts",
     "bruno:demo": "cd bruno && bru run flows/demo --env local --reporter-html ../bruno-report.html",
+    "bruno:booking": "cd bruno && bru run flows/booking --env local --reporter-html ../bruno-report.html",
     "bruno:all": "cd bruno && bru run --env local --reporter-html ../bruno-report.html",
     "setup": "bash scripts/setup",
     "prepare": "lefthook install || true"

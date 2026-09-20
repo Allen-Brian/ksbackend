@@ -9,7 +9,7 @@ import type {
   PublicAvailabilitySlot,
   SlotInput,
 } from "@/domain/availability/availability";
-import { expandSchedule } from "@/domain/availability/schedule";
+import { expandSchedule, scheduleDateKey } from "@/domain/availability/schedule";
 import { SlotOverlap } from "@/domain/availability/errors";
 import { Conflict, Forbidden, NotFound, ValidationFailed } from "@/domain/shared/errors";
 import { CurrentUser } from "@/infra/auth";
@@ -23,8 +23,7 @@ import { AvailabilityRepo } from "./availability.repo";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY_MINUTES = 24 * 60;
 const WEEK_MINUTES = 7 * DAY_MINUTES;
-const dateKey = (date: Date): string =>
-  new Date(date.getTime() + 3_600_000).toISOString().slice(0, 10);
+const dateKey = scheduleDateKey;
 const timeMinutes = (time: string): number => {
   const [hours = 0, minutes = 0] = time.split(":").map(Number);
   return hours * 60 + minutes;
@@ -164,8 +163,9 @@ export const AvailabilityServiceLive = Layer.effect(
           rules: repo.listRules(practitionerProfileId),
           exceptions: repo.listExceptions(practitionerProfileId, dateKey(from), dateKey(to)),
           explicitSlots: repo.listSlotsInRange(practitionerProfileId, from, to),
+          reserved: repo.listReservedWindows(practitionerProfileId, from, to, now),
         },
-        { concurrency: 3 },
+        { concurrency: 4 },
       ).pipe(Effect.map((data) => expandSchedule({ ...data, from, to, now })));
 
     const publicWindow = (

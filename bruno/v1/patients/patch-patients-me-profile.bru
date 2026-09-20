@@ -1,0 +1,21 @@
+meta {
+  name: Update the current patient's emergency contact
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/v1/patients/me/profile
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "emergencyContact": {
+      "name": "Ngo Mbeki",
+      "phone": "+237699000000",
+      "relationship": "Sister"
+    }
+  }
+}

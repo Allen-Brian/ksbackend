@@ -36,11 +36,27 @@ const toDomain = (base: ProfileRow, patient: PatientRow): Patient => ({
   emergencyContact: toEmergencyContact(patient),
 });
 
+const emergencyContactColumns = (emergencyContact: EmergencyContact | null) => ({
+  emergencyContactName: emergencyContact?.name ?? null,
+  emergencyContactPhone: emergencyContact?.phone ?? null,
+  emergencyContactRelationship: emergencyContact?.relationship ?? null,
+});
+
 export interface PatientRepoService {
   readonly findByUserId: (userId: string) => Effect.Effect<Patient | undefined, SqlError.SqlError>;
-  /** Create-or-update the patient marker + emergency contact (idempotent). */
+  /**
+   * Create-or-update the patient marker (idempotent). `emergencyContact`:
+   * an object replaces the stored contact, `null` clears it, and `undefined`
+   * leaves an existing row's contact untouched (a fresh row starts with none).
+   */
   readonly upsert: (
     id: string,
+    userId: string,
+    emergencyContact: EmergencyContact | null | undefined,
+    updatedAt: Date,
+  ) => Effect.Effect<void, SqlError.SqlError>;
+  /** Replace (or clear, with `null`) the emergency contact of an existing patient row. */
+  readonly updateEmergencyContact: (
     userId: string,
     emergencyContact: EmergencyContact | null,
     updatedAt: Date,
@@ -90,22 +106,23 @@ export const PatientRepoLive = Layer.effect(
       upsert: (id, userId, emergencyContact, updatedAt) =>
         db
           .insert(patientProfile)
-          .values({
-            id,
-            userId,
-            emergencyContactName: emergencyContact?.name ?? null,
-            emergencyContactPhone: emergencyContact?.phone ?? null,
-            emergencyContactRelationship: emergencyContact?.relationship ?? null,
-          })
+          .values({ id, userId, ...emergencyContactColumns(emergencyContact ?? null) })
           .onConflictDoUpdate({
             target: patientProfile.userId,
+            // Omitted contact → the three columns are absent from SET, so an
+            // existing contact survives a profile re-submission.
             set: {
-              emergencyContactName: emergencyContact?.name ?? null,
-              emergencyContactPhone: emergencyContact?.phone ?? null,
-              emergencyContactRelationship: emergencyContact?.relationship ?? null,
+              ...(emergencyContact !== undefined && emergencyContactColumns(emergencyContact)),
               updatedAt,
             },
           })
+          .pipe(Effect.asVoid),
+
+      updateEmergencyContact: (userId, emergencyContact, updatedAt) =>
+        db
+          .update(patientProfile)
+          .set({ ...emergencyContactColumns(emergencyContact), updatedAt })
+          .where(eq(patientProfile.userId, userId))
           .pipe(Effect.asVoid),
 
       ensureMarker: (id, userId) =>

@@ -1,6 +1,14 @@
 import { Cause, Option } from "effect";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import {
+  AppointmentStateInvalid,
+  BookingLimitReached,
+  CancellationWindowClosed,
+  HoldExpired,
+  NotACaregiver,
+  SlotUnavailable,
+} from "@/domain/appointment/errors";
 import { SlotOverlap } from "@/domain/availability/errors";
 import { ReviewNotEligible } from "@/domain/review/errors";
 import {
@@ -72,6 +80,39 @@ export const causeToError = (cause: Cause.Cause<unknown>): MappedError => {
     }
     if (error instanceof SlotOverlap) {
       return { status: 409, code: "SLOT_OVERLAP", params: {}, details: [] };
+    }
+    if (error instanceof SlotUnavailable) {
+      return { status: 409, code: "SLOT_UNAVAILABLE", params: {}, details: [] };
+    }
+    if (error instanceof HoldExpired) {
+      return { status: 409, code: "HOLD_EXPIRED", params: {}, details: [] };
+    }
+    if (error instanceof NotACaregiver) {
+      return { status: 403, code: "NOT_A_CAREGIVER", params: {}, details: [] };
+    }
+    if (error instanceof AppointmentStateInvalid) {
+      return {
+        status: 409,
+        code: "APPOINTMENT_STATE_INVALID",
+        params: { current: error.current },
+        details: [],
+      };
+    }
+    if (error instanceof BookingLimitReached) {
+      return {
+        status: 409,
+        code: "BOOKING_LIMIT_REACHED",
+        params: { limit: error.limit },
+        details: [],
+      };
+    }
+    if (error instanceof CancellationWindowClosed) {
+      return {
+        status: 409,
+        code: "CANCELLATION_WINDOW_CLOSED",
+        params: { hours: error.cutoffHours },
+        details: [],
+      };
     }
     if (error instanceof ValidationFailed) {
       return { status: 422, code: "VALIDATION_FAILED", params: {}, details: error.issues };

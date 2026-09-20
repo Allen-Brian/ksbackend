@@ -1,0 +1,23 @@
+meta {
+  name: List my appointments
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/v1/me/appointments
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~limit:
+  ~cursor:
+}
+
+docs {
+  Everything the signed-in user booked (for themself or on someone's behalf) plus
+  appointments booked for them as a linked dependent. Newest first, cursor-paginated:
+  `{ data, meta: { limit, nextCursor } }` — pass `meta.nextCursor` as `?cursor=` for the
+  next page. Lapsed holds appear as `expired`.
+}

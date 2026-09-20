@@ -5,9 +5,27 @@ import { Context, Effect, Layer } from "effect";
 import { caregiverLink } from "@/db/schema/caregiver-link";
 import { dependent } from "@/db/schema/dependent";
 import type { Dependent, DependentInput, DependentPatch } from "@/domain/dependent/dependent";
+import type { EmergencyContact } from "@/domain/patient/patient";
 
 type DependentRow = typeof dependent.$inferSelect;
 type LinkRow = typeof caregiverLink.$inferSelect;
+
+const toEmergencyContact = (d: DependentRow): EmergencyContact | null =>
+  d.emergencyContactName === null ||
+  d.emergencyContactPhone === null ||
+  d.emergencyContactRelationship === null
+    ? null
+    : {
+        name: d.emergencyContactName,
+        phone: d.emergencyContactPhone,
+        relationship: d.emergencyContactRelationship,
+      };
+
+const emergencyContactColumns = (emergencyContact: EmergencyContact | null) => ({
+  emergencyContactName: emergencyContact?.name ?? null,
+  emergencyContactPhone: emergencyContact?.phone ?? null,
+  emergencyContactRelationship: emergencyContact?.relationship ?? null,
+});
 
 const toDomain = (d: DependentRow, link: LinkRow): Dependent => ({
   id: d.id,
@@ -18,6 +36,7 @@ const toDomain = (d: DependentRow, link: LinkRow): Dependent => ({
   relationship: link.relationship,
   phone: d.phone,
   location: d.location,
+  emergencyContact: toEmergencyContact(d),
 });
 
 export interface DependentRepoService {
@@ -95,6 +114,7 @@ export const DependentRepoLive = Layer.effect(
                 sex: values.sex,
                 phone: values.phone ?? null,
                 location: values.location ?? null,
+                ...emergencyContactColumns(values.emergencyContact ?? null),
               });
               yield* db.insert(caregiverLink).values({
                 id: linkId,
@@ -153,6 +173,9 @@ export const DependentRepoLive = Layer.effect(
                 ...(patch.sex !== undefined && { sex: patch.sex }),
                 ...(patch.phone !== undefined && { phone: patch.phone }),
                 ...(patch.location !== undefined && { location: patch.location }),
+                // `null` clears all three columns; `undefined` leaves them alone.
+                ...(patch.emergencyContact !== undefined &&
+                  emergencyContactColumns(patch.emergencyContact)),
               };
               if (Object.keys(personFields).length > 0) {
                 yield* db

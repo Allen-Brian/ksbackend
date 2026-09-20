@@ -73,3 +73,10 @@ export const availabilityExceptionKindEnum = pgEnum("availability_exception_kind
   "blocked",
   "extra",
 ]);
+
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "held",
+  "confirmed",
+  "cancelled",
+  "expired",
+]);

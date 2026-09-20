@@ -1,0 +1,47 @@
+meta {
+  name: 6 · Hold the slot (checkout starts)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "practitionerId": "{{practitionerId}}",
+    "slotKey": "{{slotKey}}",
+    "startsAt": "{{slotStartsAt}}",
+    "consultationType": "in_person",
+    "offeringId": "{{offeringId}}",
+    "locationId": {{slotLocationIdJson}},
+    "preferredLanguage": "fr"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setVar("appointmentId", res.body.id);
+  }
+}
+
+tests {
+  test("201 — the slot is held for the checkout window", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.status).to.equal("held");
+    expect(res.body.holdExpiresAt).to.be.a("string");
+    expect(res.body.practitionerId).to.equal(bru.getVar("practitionerId"));
+    expect(res.body.subject.kind).to.equal("self");
+  });
+}
+
+docs {
+  Every value here is a *selection*, not authority: the API re-derives the slot from the
+  live schedule, checks the offering/location belong to the doctor and match
+  `consultationType`, and that she speaks `preferredLanguage` (`fr` — the seeded doctor
+  speaks fr + en). Nobody else can hold this time now; a racing patient would get
+  409 SLOT_UNAVAILABLE.
+}

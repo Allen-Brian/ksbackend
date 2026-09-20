@@ -11,6 +11,8 @@ import { FileScanner, FileScannerCleanLive, FileScannerS3Live } from "./infra/sc
 import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/storage";
 import { AdminRepoLive } from "./modules/admin/admin.repo";
 import { AdminServiceLive } from "./modules/admin/admin.service";
+import { AppointmentRepoLive } from "./modules/appointment/appointment.repo";
+import { AppointmentServiceLive } from "./modules/appointment/appointment.service";
 import { AvailabilityRepoLive } from "./modules/availability/availability.repo";
 import { AvailabilityServiceLive } from "./modules/availability/availability.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
@@ -84,6 +86,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const offeringRepo = OfferingRepoLive.pipe(Layer.provide(database));
   const payoutRepo = PayoutRepoLive.pipe(Layer.provide(database));
   const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
+  const appointmentRepo = AppointmentRepoLive.pipe(Layer.provide(database));
 
   const reference = ReferenceServiceLive.pipe(Layer.provide(referenceRepo));
   const qualification = QualificationServiceLive.pipe(
@@ -161,6 +164,22 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     Layer.provide(Layer.mergeAll(reviewRepo, practitionerRepo, idGen, database)),
   );
   const dependent = DependentServiceLive.pipe(Layer.provide(Layer.mergeAll(dependentRepo, idGen)));
+  const appointment = AppointmentServiceLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        appointmentRepo,
+        availabilityRepo,
+        practitionerRepo,
+        offeringRepo,
+        locationRepo,
+        patientRepo,
+        profileRepo,
+        dependentRepo,
+        idGen,
+        database,
+      ),
+    ),
+  );
   const invitation = InvitationServiceLive.pipe(
     Layer.provide(Layer.mergeAll(invitationRepo, idGen, infra.email, database)),
   );
@@ -182,6 +201,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     offering,
     payout,
     dependent,
+    appointment,
     invitation,
     health,
     RateLimiterInMemoryLive,

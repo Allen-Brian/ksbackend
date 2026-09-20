@@ -4,7 +4,7 @@ import type {
   AvailabilityRule,
   AvailabilitySlot,
 } from "@/domain/availability/availability";
-import { expandSchedule } from "@/domain/availability/schedule";
+import { expandSchedule, type ReservedWindow } from "@/domain/availability/schedule";
 
 const instant = (value: string): Date => new Date(Date.parse(value));
 const rule = (patch?: Partial<AvailabilityRule>): AvailabilityRule => ({
@@ -46,11 +46,13 @@ const expand = (
   rules: ReadonlyArray<AvailabilityRule>,
   exceptions: ReadonlyArray<AvailabilityException> = [],
   explicitSlots: ReadonlyArray<AvailabilitySlot> = [],
+  reserved: ReadonlyArray<ReservedWindow> = [],
 ) =>
   expandSchedule({
     rules,
     exceptions,
     explicitSlots,
+    reserved,
     from: instant("2026-08-31T00:00:00.000Z"),
     to: instant("2026-09-01T00:00:00.000Z"),
     now: instant("2026-08-30T00:00:00.000Z"),
@@ -96,6 +98,32 @@ describe("expandSchedule", () => {
     expect(slots.map((slot) => slot.startsAt.toISOString())).not.toContain(
       "2026-08-31T08:00:00.000Z",
     );
+  });
+
+  it("removes any slot a live appointment overlaps, from every source", () => {
+    // A 10-minute reservation straddling two rule slots removes both; the
+    // explicit slot it doesn't touch survives.
+    const slots = expand(
+      [rule()],
+      [],
+      [
+        explicit({
+          startsAt: instant("2026-08-31T10:00:00.000Z"),
+          endsAt: instant("2026-08-31T10:30:00.000Z"),
+        }),
+      ],
+      [
+        {
+          startsAt: instant("2026-08-31T08:25:00.000Z"),
+          endsAt: instant("2026-08-31T08:35:00.000Z"),
+        },
+      ],
+    );
+    expect(slots.map((slot) => slot.startsAt.toISOString())).toEqual([
+      "2026-08-31T09:00:00.000Z",
+      "2026-08-31T09:30:00.000Z",
+      "2026-08-31T10:00:00.000Z",
+    ]);
   });
 
   it("expands overnight ranges and excludes slots outside validity dates", () => {

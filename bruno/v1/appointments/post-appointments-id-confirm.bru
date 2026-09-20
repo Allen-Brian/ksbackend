@@ -1,0 +1,27 @@
+meta {
+  name: Confirm a held appointment
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments/:id/confirm
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+docs {
+  Step 2 of the booking: turns the booker's `held` appointment into a `confirmed` one
+  (`holdExpiresAt` becomes null). This is where payment authorization will run once
+  payments ship; today confirmation is immediate.
+
+  Idempotent — confirming an already-confirmed appointment returns it again (200).
+
+  - 409 `HOLD_EXPIRED` — the checkout window lapsed; hold the slot again.
+  - 409 `APPOINTMENT_STATE_INVALID` — it was cancelled in the meantime.
+  - 404 — no such appointment booked by the caller.
+}

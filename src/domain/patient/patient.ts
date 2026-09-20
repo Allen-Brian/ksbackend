@@ -23,5 +23,14 @@ export type PatientProfileInput = {
   readonly dateOfBirth: string;
   readonly sex: Sex;
   readonly consentVersion: string;
+  /** Omitted (`undefined`) leaves any stored contact untouched. */
   readonly emergencyContact?: EmergencyContact | undefined;
+};
+
+/**
+ * Partial edit of the patient-specific data without re-accepting terms.
+ * `emergencyContact`: an object replaces, `null` clears, `undefined` leaves it as-is.
+ */
+export type PatientProfilePatch = {
+  readonly emergencyContact?: EmergencyContact | null | undefined;
 };

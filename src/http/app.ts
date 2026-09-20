@@ -12,6 +12,7 @@ import { Health } from "@/infra/health";
 import { type Locale, negotiateLocale, translate } from "@/infra/i18n";
 import { RateLimiter } from "@/infra/rate-limiter";
 import { registerAdminRoutes } from "@/modules/admin/admin.routes";
+import { registerAppointmentRoutes } from "@/modules/appointment/appointment.routes";
 import { registerDependentRoutes } from "@/modules/dependent/dependent.routes";
 import { registerInvitationRoutes } from "@/modules/invitation/invitation.routes";
 import { registerLocationRoutes } from "@/modules/location/location.routes";
@@ -171,6 +172,7 @@ export const createApp = (
   registerPractitionerSearchRoutes(app, runtime);
   registerReviewRoutes(app, runtime);
   registerAvailabilityRoutes(app, runtime);
+  registerAppointmentRoutes(app, runtime);
   registerReferenceRoutes(app, runtime);
   registerQualificationRoutes(app, runtime);
   registerLocationRoutes(app, runtime);
@@ -228,6 +230,14 @@ export const createApp = (
         "emails them a token → they `POST /v1/invitations/{token}/accept` (or `/decline`). Either",
         "party revokes with `DELETE /v1/dependents/links/{id}`. Check whether an email already has",
         "an account with `GET /v1/users/search` before inviting.",
+        "",
+        "**Booking** — pick a slot from `GET /v1/practitioners/{id}/availability` (its `key` +",
+        "`startsAt`) and an offering from the practitioner's public profile, then",
+        "`POST /v1/appointments` to hold it (for yourself, a managed dependent via `dependentId`, or a",
+        "linked dependent via `subjectUserId`) → `POST /v1/appointments/{id}/confirm` before",
+        "`holdExpiresAt`. `GET /v1/me/appointments` lists yours; the doctor sees the day in",
+        "`GET /v1/practitioners/me/agenda`. Availability reads always subtract live appointments, and a",
+        "stale selection is refused with `409 SLOT_UNAVAILABLE` — refetch and pick again.",
       ].join("\n"),
     },
     tags: [
@@ -261,6 +271,11 @@ export const createApp = (
         name: "Availability",
         description:
           "Practitioners publish bookable time slots; drives the next-available slot shown on discovery cards.",
+      },
+      {
+        name: "Appointments",
+        description:
+          "Booking with real-time slot locking: hold a slot during checkout, confirm it, cancel it; the patient's appointment list and the practitioner's daily agenda.",
       },
       { name: "Reference", description: "Active profession and ISO language catalogs." },
       { name: "Qualifications", description: "Practitioner qualifications and certifications." },
