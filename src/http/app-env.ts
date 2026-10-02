@@ -15,6 +15,7 @@ import type { NotificationService } from "@/modules/notification/notification.se
 import type { OfferingService } from "@/modules/offering/offering.service";
 import type { PatientService } from "@/modules/patient/patient.service";
 import type { PatientSearchService } from "@/modules/patient/search/search.service";
+import type { BookingPolicyService } from "@/modules/practitioner/booking-policy/booking-policy.service";
 import type { PractitionerService } from "@/modules/practitioner/practitioner.service";
 import type { PractitionerSearchService } from "@/modules/practitioner/search/search.service";
 import type { ProfileService } from "@/modules/profile/profile.service";
@@ -48,6 +49,7 @@ export type AppServices =
   | ReviewService
   | AvailabilityService
   | AppointmentService
+  | BookingPolicyService
   | DependentService
   | InvitationService
   | ReferenceService

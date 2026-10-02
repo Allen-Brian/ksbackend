@@ -816,6 +816,90 @@ describe("appointments API (real DB)", () => {
     ).toEqual([explicit.startsAt]);
   });
 
+  it("snapshots cancellation terms and lets only the practitioner change policy", async () => {
+    const endpoint = "/v1/practitioners/me/booking-policy";
+    expect(
+      (await request(harness, "PATCH", endpoint, patientB, { cancellationCutoffHours: 168 }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await request(harness, "PATCH", endpoint, clinic.doctorCookie, {
+          cancellationCutoffHours: -1,
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await request(harness, "PATCH", endpoint, clinic.doctorCookie, {
+          cancellationCutoffHours: 0,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          harness,
+          "GET",
+          `/v1/practitioners/${clinic.doctorId}/booking-policy`,
+          undefined,
+        )
+      ).status,
+    ).toBe(401);
+    const publicPolicy = await json<{ cancellationCutoffHours: number }>(
+      await request(
+        harness,
+        "GET",
+        `/v1/practitioners/${clinic.doctorId}/booking-policy`,
+        patientB,
+      ),
+    );
+    expect(publicPolicy.cancellationCutoffHours).toBe(0);
+    const published = await json<{ id: string }>(
+      await harness.post(
+        "/v1/practitioners/me/availability",
+        {
+          startsAt: "2026-10-06T18:00:00.000Z",
+          endsAt: "2026-10-06T18:30:00.000Z",
+          consultationTypes: ["video"],
+        },
+        clinic.doctorCookie,
+      ),
+    );
+    const slot = slotAt(
+      await slotsFor(harness, patientB, clinic.doctorId),
+      "2026-10-06T18:00:00.000Z",
+    );
+    const held = await json<AppointmentBody>(
+      await hold(patientB, slot, { consultationType: "video", offeringId: clinic.videoOfferingId }),
+    );
+    expect((await transition(patientB, held.id, "confirm")).status).toBe(200);
+    expect(
+      (
+        await request(harness, "PATCH", endpoint, clinic.doctorCookie, {
+          cancellationCutoffHours: 168,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await transition(patientB, held.id, "cancel")).status).toBe(200);
+    const available = await slotsFor(harness, patientB, clinic.doctorId);
+    expect(
+      available.filter((candidate) => candidate.key === `explicit:${published.id}`),
+    ).toHaveLength(1);
+    const next = await json<AppointmentBody>(
+      await hold(patientB, slot, { consultationType: "video", offeringId: clinic.videoOfferingId }),
+    );
+    expect((await transition(patientB, next.id, "confirm")).status).toBe(200);
+    expect((await transition(patientB, next.id, "cancel")).status).toBe(409);
+    expect(
+      (
+        await request(harness, "PATCH", endpoint, clinic.doctorCookie, {
+          cancellationCutoffHours: null,
+        })
+      ).status,
+    ).toBe(200);
+  });
+
   it("agenda is practitioner-only and defaults to today", async () => {
     expect((await request(harness, "GET", "/v1/practitioners/me/agenda", patientA)).status).toBe(
       403,
@@ -904,6 +988,9 @@ describe("appointments API — configured hold TTL and cancellation cutoff", () 
     expect(soonResponse.status).toBe(201);
     const soon = await json<AppointmentBody>(soonResponse);
     expect(soon.holdExpiresAt).toBe(new Date(NOW.getTime() + 3 * 60_000).toISOString());
+    expect((await harness.post(`/v1/appointments/${soon.id}/confirm`, {}, patient)).status).toBe(
+      200,
+    );
     const refused = await harness.post(`/v1/appointments/${soon.id}/cancel`, {}, patient);
     expect(refused.status).toBe(409);
     expect((await json<ErrorBody>(refused)).error.code).toBe("CANCELLATION_WINDOW_CLOSED");

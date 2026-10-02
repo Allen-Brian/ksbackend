@@ -15,6 +15,8 @@ export type CareSubject =
 
 export type Appointment = {
   readonly id: string;
+  /** Terms captured at hold time; legacy rows fall back to configured default. */
+  readonly cancellationCutoffHours: number | null;
   readonly revision: number;
   readonly scheduleTimezone: string;
   readonly practitionerProfileId: string;

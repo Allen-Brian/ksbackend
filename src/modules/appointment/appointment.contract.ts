@@ -74,6 +74,7 @@ export const AppointmentResponse = z
   .object({
     id: z.uuid(),
     revision: z.number().int().nonnegative(),
+    cancellationCutoffHours: z.number().int().nonnegative().nullable(),
     practitionerId: z.uuid(),
     status,
     startsAt: z

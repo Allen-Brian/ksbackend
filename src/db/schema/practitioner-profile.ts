@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -37,6 +39,7 @@ export const practitionerProfile = pgTable(
     // New writes are reference-validated and always set this false.
     languagesLegacy: boolean("languages_legacy").notNull().default(false),
     yearsExperience: integer("years_experience"),
+    cancellationCutoffHours: integer("cancellation_cutoff_hours"),
     consultationFeeXaf: integer("consultation_fee_xaf"),
     consultationTypes: consultationTypeEnum("consultation_types").array(),
     // Denormalized review aggregate — kept in sync (recompute-from-scratch) inside the
@@ -71,6 +74,10 @@ export const practitionerProfile = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      "practitioner_cancellation_cutoff_range",
+      sql`${table.cancellationCutoffHours} between 0 and 168`,
+    ),
     // Backs the bounding-box pre-filter of a "practitioners near me" radius search.
     index("practitioner_profile_coordinates_idx").on(table.latitude, table.longitude),
   ],

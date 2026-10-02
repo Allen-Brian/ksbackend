@@ -9,6 +9,7 @@ import { caregiverLink } from "@/db/schema/caregiver-link";
 import { consultationOffering } from "@/db/schema/consultation-offering";
 import { dependent } from "@/db/schema/dependent";
 import { practiceLocation } from "@/db/schema/practice-location";
+import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import { profile } from "@/db/schema/profile";
 import type { Appointment, AppointmentStatus, CareSubject } from "@/domain/appointment/appointment";
 import { BookingLimitReached } from "@/domain/appointment/errors";
@@ -30,6 +31,7 @@ const subjectColumns = (subject: CareSubject) => ({
 
 const toDomain = (row: Row): Appointment => ({
   id: row.id,
+  cancellationCutoffHours: row.cancellationCutoffHours,
   revision: row.revision,
   scheduleTimezone: row.scheduleTimezone,
   practitionerProfileId: row.practitionerProfileId,
@@ -86,6 +88,7 @@ export type NewAppointmentRow = {
   readonly endsAt: Date;
   readonly slotKey: string;
   readonly preferredLanguage: string;
+  readonly cancellationCutoffHours: number;
   readonly holdExpiresAt: Date;
   /** Cap on the booker's live upcoming appointments (a retry of an existing hold is exempt). */
   readonly maxLive: number;
@@ -106,6 +109,7 @@ export type AgendaEntry = {
 };
 
 export interface AppointmentRepoService {
+  readonly practitionerCutoff: (id: string) => Effect.Effect<number | null, SqlError.SqlError>;
   readonly idExists: (id: string) => Effect.Effect<boolean, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Appointment | undefined, SqlError.SqlError>;
   readonly findForUpdate: (id: string) => Effect.Effect<Appointment | undefined, SqlError.SqlError>;
@@ -172,6 +176,13 @@ export const AppointmentRepoLive = Layer.effect(
     };
 
     return {
+      practitionerCutoff: (id) =>
+        db
+          .select({ cutoff: practitionerProfile.cancellationCutoffHours })
+          .from(practitionerProfile)
+          .where(eq(practitionerProfile.id, id))
+          .limit(1)
+          .pipe(Effect.map((rows) => rows[0]?.cutoff ?? null)),
       idExists: (id) =>
         db
           .select({ id: appointment.id })
@@ -288,6 +299,7 @@ export const AppointmentRepoLive = Layer.effect(
               slotKey: row.slotKey,
               preferredLanguage: row.preferredLanguage,
               status: "held",
+              cancellationCutoffHours: row.cancellationCutoffHours,
               holdExpiresAt: row.holdExpiresAt,
               createdAt: row.now,
               updatedAt: row.now,

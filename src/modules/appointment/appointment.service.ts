@@ -325,6 +325,8 @@ export const AppointmentServiceLive = Layer.effect(
           );
         }
         const id = input.id ?? (yield* ids.next);
+        const cutoff =
+          (yield* repo.practitionerCutoff(input.practitionerProfileId)) ?? cancelCutoffHours;
         return yield* sql
           .withTransaction(
             repo.reserve({
@@ -340,6 +342,7 @@ export const AppointmentServiceLive = Layer.effect(
               slotKey: slot.key,
               preferredLanguage: input.preferredLanguage,
               holdExpiresAt: new Date(current.getTime() + holdTtlMinutes * 60_000),
+              cancellationCutoffHours: cutoff,
               maxLive: maxLivePerBooker,
               now: current,
             }),
@@ -409,10 +412,12 @@ export const AppointmentServiceLive = Layer.effect(
           if (status === "expired") {
             return yield* Effect.fail(new AppointmentStateInvalid({ current: status }));
           }
-          if (!withinCancellationWindow(found.startsAt, current, cancelCutoffHours)) {
-            return yield* Effect.fail(
-              new CancellationWindowClosed({ cutoffHours: cancelCutoffHours }),
-            );
+          const cutoff = found.cancellationCutoffHours ?? cancelCutoffHours;
+          if (
+            status === "confirmed" &&
+            !withinCancellationWindow(found.startsAt, current, cutoff)
+          ) {
+            return yield* Effect.fail(new CancellationWindowClosed({ cutoffHours: cutoff }));
           }
           const slotId = explicitSlotId(found.slotKey);
           return yield* sql.withTransaction(

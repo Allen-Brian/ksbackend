@@ -39,6 +39,8 @@ import { ReferenceRepoLive } from "./modules/reference/reference.repo";
 import { ReferenceServiceLive } from "./modules/reference/reference.service";
 import { ReviewRepoLive } from "./modules/review/review.repo";
 import { ReviewServiceLive } from "./modules/review/review.service";
+import { BookingPolicyRepoLive } from "./modules/practitioner/booking-policy/booking-policy.repo";
+import { BookingPolicyServiceLive } from "./modules/practitioner/booking-policy/booking-policy.service";
 import { PractitionerRepoLive } from "./modules/practitioner/practitioner.repo";
 import { PractitionerServiceLive } from "./modules/practitioner/practitioner.service";
 import { PractitionerSearchRepoLive } from "./modules/practitioner/search/search.repo";
@@ -87,6 +89,9 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const payoutRepo = PayoutRepoLive.pipe(Layer.provide(database));
   const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
   const appointmentRepo = AppointmentRepoLive.pipe(Layer.provide(database));
+
+  const bookingPolicyRepo = BookingPolicyRepoLive.pipe(Layer.provide(database));
+  const bookingPolicy = BookingPolicyServiceLive.pipe(Layer.provide(bookingPolicyRepo));
 
   const reference = ReferenceServiceLive.pipe(Layer.provide(referenceRepo));
   const qualification = QualificationServiceLive.pipe(
@@ -202,6 +207,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     payout,
     dependent,
     appointment,
+    bookingPolicy,
     invitation,
     health,
     RateLimiterInMemoryLive,

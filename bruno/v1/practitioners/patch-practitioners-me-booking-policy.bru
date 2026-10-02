@@ -1,0 +1,15 @@
+meta {
+  name: patch-practitioners-me-booking-policy
+  type: http
+  seq: 1
+}
+
+patch {
+  url: {{baseUrl}}/v1/practitioners/me/booking-policy
+  body: json
+  auth: inherit
+}
+
+body:json {
+  { "cancellationCutoffHours": 24 }
+}

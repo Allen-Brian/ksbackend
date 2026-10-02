@@ -20,6 +20,7 @@ import { registerPatientRoutes } from "@/modules/patient/patient.routes";
 import { registerPatientSearchRoutes } from "@/modules/patient/search/search.routes";
 import { registerOfferingRoutes } from "@/modules/offering/offering.routes";
 import { registerPayoutRoutes } from "@/modules/payout/payout.routes";
+import { registerBookingPolicyRoutes } from "@/modules/practitioner/booking-policy/booking-policy.routes";
 import { registerPractitionerRoutes } from "@/modules/practitioner/practitioner.routes";
 import { registerPractitionerSearchRoutes } from "@/modules/practitioner/search/search.routes";
 import { registerNotificationRoutes } from "@/modules/notification/notification.routes";
@@ -173,6 +174,7 @@ export const createApp = (
   registerReviewRoutes(app, runtime);
   registerAvailabilityRoutes(app, runtime);
   registerAppointmentRoutes(app, runtime);
+  registerBookingPolicyRoutes(app, runtime);
   registerReferenceRoutes(app, runtime);
   registerQualificationRoutes(app, runtime);
   registerLocationRoutes(app, runtime);

@@ -35,6 +35,7 @@ export const appointment = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     // The canonical slot identity the client selected (rule:/exception:/explicit:).
     scheduleTimezone: text("schedule_timezone").notNull().default("Africa/Douala"),
+    cancellationCutoffHours: integer("cancellation_cutoff_hours"),
     revision: integer("revision").notNull().default(0),
     slotKey: text("slot_key").notNull(),
     preferredLanguage: text("preferred_language").notNull(),
@@ -44,6 +45,7 @@ export const appointment = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    check("appointment_cancellation_cutoff_nonnegative", sql`${t.cancellationCutoffHours} >= 0`),
     // Live rows per practitioner in time order: the agenda + the availability
     // subtraction both scan exactly this.
     index("appointment_practitioner_live_idx")

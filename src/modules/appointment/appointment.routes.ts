@@ -27,6 +27,7 @@ const toSubject = (subject: CareSubject) => ({
 const toResponse = (a: Appointment) => ({
   id: a.id,
   revision: a.revision,
+  cancellationCutoffHours: a.cancellationCutoffHours,
   practitionerId: a.practitionerProfileId,
   status: a.status,
   startsAt: a.startsAt.toISOString(),
@@ -110,8 +111,8 @@ const cancel = createRoute({
   summary: "Cancel an appointment you booked",
   description: [
     "Cancels a `held` or `confirmed` appointment and frees the slot immediately. Only the booker",
-    "can cancel (practitioner-side cancellation and rescheduling are a later story). Allowed any",
-    "time before the start unless `APPOINTMENT_CANCEL_CUTOFF_HOURS` is configured",
+    "can cancel. Unconfirmed checkout holds may always be released; confirmed appointments use",
+    "the cancellation cutoff captured when booked (legacy rows use the application default)",
     "(`409 CANCELLATION_WINDOW_CLOSED`). Idempotent on an already-cancelled appointment.",
   ].join(" "),
   request: { params: idParam },
