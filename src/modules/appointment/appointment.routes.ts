@@ -6,6 +6,9 @@ import { makeRun } from "@/http/run";
 import { CursorQuery, ErrorResponse } from "@/http/schemas";
 import { CurrentUser } from "@/infra/auth";
 import {
+  AppointmentAlternativesQuery,
+  AppointmentAlternativesResponse,
+  RescheduleAppointmentBody,
   AgendaQuery,
   AgendaResponse,
   AppointmentResponse,
@@ -173,9 +176,99 @@ const agenda = createRoute({
   },
 });
 
+const reschedule = createRoute({
+  method: "post",
+  path: "/v1/appointments/{id}/reschedule",
+  tags: ["Appointments"],
+  summary: "Move a confirmed appointment atomically",
+  description:
+    "Only the booker can move a confirmed appointment to a compatible slot with the same practitioner/offering. Cancellation terms captured at booking apply. A failed move preserves the original reservation. Retry the same operationId and payload to receive the original success without another move; stale expectedRevision or reused operationId returns 409.",
+  request: { params: idParam, body: jsonBody(RescheduleAppointmentBody) },
+  responses: {
+    200: {
+      ...jsonBody(AppointmentResponse),
+      description: "Moved appointment, or replayed successful result.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    403: { ...jsonBody(ErrorResponse), description: "Caregiver authority revoked." },
+    404: {
+      ...jsonBody(ErrorResponse),
+      description: "Unknown appointment or incompatible inactive offering.",
+    },
+    409: {
+      ...jsonBody(ErrorResponse),
+      description:
+        "Slot unavailable, stale revision, operation reuse, invalid state, or cutoff closed.",
+    },
+    422: { ...jsonBody(ErrorResponse), description: "Invalid target selection." },
+  },
+});
+const alternatives = createRoute({
+  method: "get",
+  path: "/v1/appointments/{id}/alternatives",
+  tags: ["Appointments"],
+  summary: "Find compatible rescheduling slots with the same practitioner",
+  request: { params: idParam, query: AppointmentAlternativesQuery },
+  responses: {
+    200: {
+      ...jsonBody(AppointmentAlternativesResponse),
+      description: "Compatible slots, ordered soonest first.",
+    },
+    401: { ...jsonBody(ErrorResponse), description: "No valid session." },
+    403: { ...jsonBody(ErrorResponse), description: "Caregiver authority revoked." },
+    404: { ...jsonBody(ErrorResponse), description: "Unknown appointment." },
+    409: { ...jsonBody(ErrorResponse), description: "Appointment cannot be rescheduled." },
+    422: { ...jsonBody(ErrorResponse), description: "Invalid window or cursor." },
+  },
+});
+
 export const registerAppointmentRoutes = (app: OpenAPIHono<AppEnv>, runtime: AppRuntime): void => {
   const { runAuth } = makeRun(runtime);
 
+  app.openapi(reschedule, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* AppointmentService;
+        const body = c.req.valid("json");
+        const moved = yield* service.reschedule(user.id, c.req.valid("param").id, {
+          ...body,
+          startsAt: new Date(Date.parse(body.startsAt)),
+        });
+        return c.json(toResponse(moved), 200);
+      }),
+    ),
+  );
+  app.openapi(alternatives, (c) =>
+    runAuth(
+      c,
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const service = yield* AppointmentService;
+        const query = c.req.valid("query");
+        const page = yield* service.alternatives(user.id, c.req.valid("param").id, {
+          ...query,
+          from: new Date(Date.parse(query.from)),
+          to: new Date(Date.parse(query.to)),
+        });
+        return c.json(
+          {
+            data: page.data.map((slot) => ({
+              key: slot.key,
+              startsAt: slot.startsAt.toISOString(),
+              endsAt: slot.endsAt.toISOString(),
+              consultationTypes: [...slot.consultationTypes],
+              locationId: slot.locationId,
+              source: slot.source,
+            })),
+            meta: page.meta,
+          },
+          200,
+        );
+      }),
+    ),
+  );
   app.openapi(create, (c) =>
     runAuth(
       c,

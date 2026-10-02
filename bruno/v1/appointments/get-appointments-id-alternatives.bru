@@ -1,0 +1,18 @@
+meta {
+  name: Find appointment alternatives
+  type: http
+  seq: 8
+}
+get {
+  url: {{baseUrl}}/v1/appointments/:id/alternatives
+  body: none
+  auth: inherit
+}
+params:path {
+  id:
+}
+params:query {
+  from: 2026-10-05T00:00:00.000Z
+  to: 2026-10-07T00:00:00.000Z
+  limit: 20
+}

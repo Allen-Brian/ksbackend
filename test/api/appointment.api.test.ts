@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { v7 as uuidv7 } from "uuid";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { appointment } from "@/db/schema/appointment";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
@@ -891,6 +892,18 @@ describe("appointments API (real DB)", () => {
     );
     expect((await transition(patientB, next.id, "confirm")).status).toBe(200);
     expect((await transition(patientB, next.id, "cancel")).status).toBe(409);
+    const refusedMove = await harness.post(
+      `/v1/appointments/${next.id}/reschedule`,
+      {
+        operationId: uuidv7(),
+        expectedRevision: next.revision + 1,
+        slotKey: slot.key,
+        startsAt: slot.startsAt,
+      },
+      patientB,
+    );
+    expect(refusedMove.status).toBe(409);
+    expect((await json<ErrorBody>(refusedMove)).error.code).toBe("CANCELLATION_WINDOW_CLOSED");
     expect(
       (
         await request(harness, "PATCH", endpoint, clinic.doctorCookie, {
@@ -1009,5 +1022,197 @@ describe("appointments API — configured hold TTL and cancellation cutoff", () 
       200,
     );
     expect((await book(eightThirty)).status).toBe(201);
+  });
+});
+
+describe("appointments API — atomic rescheduling", () => {
+  let harness: TestHarness;
+  let clinic: Clinic;
+  let patient: string;
+  let other: string;
+  const publish = async (hour: number): Promise<Slot> => {
+    const startsAt = `2026-10-06T${hour}:00:00.000Z`;
+    const endsAt = `2026-10-06T${hour}:30:00.000Z`;
+    const response = await harness.post(
+      "/v1/practitioners/me/availability",
+      { startsAt, endsAt, consultationTypes: ["video"] },
+      clinic.doctorCookie,
+    );
+    expect(response.status).toBe(201);
+    const body = await json<{ id: string }>(response);
+    return {
+      key: `explicit:${body.id}`,
+      startsAt,
+      endsAt,
+      consultationTypes: ["video"],
+      locationId: null,
+    };
+  };
+  const book = async (slot: Slot, cookie = patient): Promise<AppointmentBody> => {
+    const held = await harness.post(
+      "/v1/appointments",
+      {
+        practitionerId: clinic.doctorId,
+        slotKey: slot.key,
+        startsAt: slot.startsAt,
+        consultationType: "video",
+        offeringId: clinic.videoOfferingId,
+        preferredLanguage: "fr",
+      },
+      cookie,
+    );
+    expect(held.status).toBe(201);
+    const created = await json<AppointmentBody>(held);
+    const confirmed = await harness.post(`/v1/appointments/${created.id}/confirm`, {}, cookie);
+    expect(confirmed.status).toBe(200);
+    return json<AppointmentBody>(confirmed);
+  };
+  const move = (found: AppointmentBody, slot: Slot, operationId = uuidv7(), cookie = patient) =>
+    harness.post(
+      `/v1/appointments/${found.id}/reschedule`,
+      { operationId, expectedRevision: found.revision, slotKey: slot.key, startsAt: slot.startsAt },
+      cookie,
+    );
+  const get = (id: string, cookie = patient) =>
+    request(harness, "GET", `/v1/appointments/${id}`, cookie);
+  beforeAll(async () => {
+    harness = await createTestHarness(undefined, { now: NOW });
+    await harness.db
+      .insert(profession)
+      .values({ id: PROFESSION_ID, nameEn: "Doctor", nameFr: "Médecin", prefixHint: "Dr." });
+    clinic = await setUpClinic(harness, "move");
+    patient = await harness.signUpAndVerify("move-p@example.com", "password12345", "Patient");
+    other = await harness.signUpAndVerify("move-other@example.com", "password12345", "Other");
+    await completePatient(harness, patient, "Tchamba", "Claire");
+    await completePatient(harness, other, "Fon", "Bernard");
+  });
+  afterAll(() => harness.dispose());
+
+  it("moves the same appointment, releases the source, and replays its immutable response after later changes", async () => {
+    const source = await publish(13);
+    const first = await publish(14);
+    const second = await publish(15);
+    const original = await book(source);
+    const noOp = await move(original, source);
+    expect(noOp.status).toBe(200);
+    expect((await json<AppointmentBody>(noOp)).revision).toBe(original.revision);
+    const alternatives = await json<{ data: Slot[]; meta: { nextCursor: string | null } }>(
+      await request(
+        harness,
+        "GET",
+        `/v1/appointments/${original.id}/alternatives?from=2026-10-06T13:00:00.000Z&to=2026-10-06T16:00:00.000Z&limit=1`,
+        patient,
+      ),
+    );
+    expect(alternatives.data.map((slot) => slot.key)).toEqual([first.key]);
+    const next = await json<{ data: Slot[] }>(
+      await request(
+        harness,
+        "GET",
+        `/v1/appointments/${original.id}/alternatives?from=2026-10-06T13:00:00.000Z&to=2026-10-06T16:00:00.000Z&limit=1&cursor=${encodeURIComponent(alternatives.meta.nextCursor ?? "")}`,
+        patient,
+      ),
+    );
+    expect(next.data.map((slot) => slot.key)).toEqual([second.key]);
+    const operationId = uuidv7();
+    const response = await move(original, first, operationId);
+    expect(response.status).toBe(200);
+    const moved = await json<AppointmentBody>(response);
+    expect(moved.id).toBe(original.id);
+    expect(moved.startsAt).toBe(first.startsAt);
+    expect(moved.revision).toBe(original.revision + 1);
+    expect(
+      (await slotsFor(harness, patient, clinic.doctorId)).filter((slot) => slot.key === source.key),
+    ).toHaveLength(1);
+    const laterResponse = await move(moved, second);
+    expect(laterResponse.status).toBe(200);
+    const later = await json<AppointmentBody>(laterResponse);
+    expect(await json<AppointmentBody>(await move(original, first, operationId))).toEqual(moved);
+    expect((await json<AppointmentBody>(await get(original.id))).startsAt).toBe(second.startsAt);
+    expect((await move(original, source)).status).toBe(409);
+    expect((await move(original, second, operationId)).status).toBe(409);
+    expect(
+      (
+        await request(
+          harness,
+          "GET",
+          `/v1/appointments/${original.id}/alternatives?${WINDOW}`,
+          other,
+        )
+      ).status,
+    ).toBe(404);
+    expect((await move(later, source, uuidv7(), other)).status).toBe(404);
+    expect((await harness.post(`/v1/appointments/${later.id}/cancel`, {}, patient)).status).toBe(
+      200,
+    );
+  });
+
+  it("two simultaneous moves to one destination leave the losing original reservation intact", async () => {
+    const sourceA = await publish(16);
+    const sourceB = await publish(17);
+    const target = await publish(18);
+    const a = await book(sourceA);
+    const b = await book(sourceB, other);
+    const responses = await Promise.all([move(a, target), move(b, target, uuidv7(), other)]);
+    expect(responses.map((response) => response.status).toSorted()).toEqual([200, 409]);
+    const aNow = await json<AppointmentBody>(await get(a.id));
+    const bNow = await json<AppointmentBody>(await get(b.id, other));
+    expect([aNow, bNow].filter((found) => found.startsAt === target.startsAt)).toHaveLength(1);
+    const loser = responses[0]?.status === 409 ? aNow : bNow;
+    const loserOriginal = responses[0]?.status === 409 ? a : b;
+    expect(loser.startsAt).toBe(loserOriginal.startsAt);
+    expect(loser.revision).toBe(loserOriginal.revision);
+  });
+
+  it("rolls back a claimed destination and the appointment move when recording history fails", async () => {
+    const source = await publish(19);
+    const target = await publish(20);
+    const found = await book(source);
+    const operationId = "019a0130-0000-7000-8000-000000000999";
+    await harness.db.execute(
+      sql`alter table appointment_change add constraint reject_test_operation check (id <> '019a0130-0000-7000-8000-000000000999'::uuid)`,
+    );
+    const response = await move(found, target, operationId).finally(() =>
+      harness.db.execute(sql`alter table appointment_change drop constraint reject_test_operation`),
+    );
+    expect(response.status).toBe(500);
+    const unchanged = await json<AppointmentBody>(await get(found.id));
+    expect(unchanged.startsAt).toBe(source.startsAt);
+    expect(unchanged.revision).toBe(found.revision);
+    const open = await slotsFor(harness, patient, clinic.doctorId);
+    expect(open.filter((slot) => slot.key === source.key)).toHaveLength(0);
+    expect(open.filter((slot) => slot.key === target.key)).toHaveLength(1);
+    expect((await move(found, target, operationId)).status).toBe(200);
+  });
+  it("retires an expired destination hold while preserving its expiry and moves into the freed slot", async () => {
+    const source = await publish(21);
+    const target = await publish(22);
+    const found = await book(source);
+    const targetHold = await json<AppointmentBody>(
+      await harness.post(
+        "/v1/appointments",
+        {
+          practitionerId: clinic.doctorId,
+          slotKey: target.key,
+          startsAt: target.startsAt,
+          consultationType: "video",
+          offeringId: clinic.videoOfferingId,
+          preferredLanguage: "fr",
+        },
+        other,
+      ),
+    );
+    const expiredAt = new Date(NOW.getTime() - 1);
+    await harness.db
+      .update(appointment)
+      .set({ holdExpiresAt: expiredAt })
+      .where(eq(appointment.id, targetHold.id));
+    expect((await move(found, target)).status).toBe(200);
+    const oldHold = await json<AppointmentBody>(await get(targetHold.id, other));
+    expect(oldHold.status).toBe("expired");
+    expect(oldHold.holdExpiresAt).toBe(expiredAt.toISOString());
+    expect(
+      (await harness.post(`/v1/appointments/${targetHold.id}/confirm`, {}, other)).status,
+    ).toBe(409);
   });
 });

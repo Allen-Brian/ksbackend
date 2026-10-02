@@ -1,0 +1,25 @@
+meta {
+  name: Reschedule an appointment
+  type: http
+  seq: 7
+}
+post {
+  url: {{baseUrl}}/v1/appointments/:id/reschedule
+  body: json
+  auth: inherit
+}
+params:path {
+  id:
+}
+body:json {
+  {
+    "operationId": "019a0130-0000-7000-8000-000000000001",
+    "expectedRevision": 1,
+    "slotKey": "explicit:replace-with-target-slot-id",
+    "startsAt": "2026-10-06T08:00:00.000Z"
+  }
+}
+docs {
+  Select a compatible target from alternatives. Read revision from the existing appointment.
+  Keep operationId and payload unchanged for a lost-response retry; use a new operationId for a new move.
+}

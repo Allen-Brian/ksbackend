@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { APPOINTMENT_STATUSES } from "@/domain/appointment/appointment";
 import { CONSULTATION_TYPES } from "@/domain/practitioner/practitioner";
+import { PublicSlotResponse } from "@/modules/availability/availability.contract";
 import { paginated } from "@/http/schemas";
 
 const status = z.enum(APPOINTMENT_STATUSES).openapi({
@@ -143,3 +144,38 @@ export const AgendaResponse = z
     }),
   })
   .openapi("Agenda");
+
+export const RescheduleAppointmentBody = z
+  .object({
+    operationId: z.uuidv7().openapi({
+      description:
+        "Unique client operation id. Retry the exact same payload to recover its original successful response.",
+    }),
+    expectedRevision: z
+      .number()
+      .int()
+      .nonnegative()
+      .openapi({ description: "Revision of the appointment last read. Stale edits return 409." }),
+    slotKey: z.string().min(1).max(200),
+    startsAt: z.iso.datetime(),
+    locationId: z.uuid().nullable().optional(),
+  })
+  .strict()
+  .openapi("RescheduleAppointment");
+export const AppointmentAlternativesQuery = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: z.string().max(1024).optional(),
+});
+export const AppointmentAlternativesResponse = z.object({
+  data: z.array(PublicSlotResponse),
+  meta: z.object({
+    count: z.number().int().nonnegative(),
+    limit: z.number().int(),
+    nextCursor: z.string().nullable(),
+    hasNextPage: z.boolean(),
+    from: z.iso.datetime(),
+    to: z.iso.datetime(),
+  }),
+});

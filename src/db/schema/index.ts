@@ -24,3 +24,5 @@ export * from "./profile";
 export * from "./profession";
 export * from "./review";
 export * from "./verification-review";
+
+export * from "./appointment-change";

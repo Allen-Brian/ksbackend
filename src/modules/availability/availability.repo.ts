@@ -1,6 +1,6 @@
 import { SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { and, asc, desc, eq, gt, gte, isNull, lt, lte, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, gt, gte, isNull, lt, lte, not, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { appointment } from "@/db/schema/appointment";
 import { availabilityException } from "@/db/schema/availability-exception";
@@ -132,6 +132,7 @@ export interface AvailabilityRepoService {
     to: Date,
     now: Date,
     exceptOwnHold?: OwnHold,
+    exceptAppointmentId?: string,
   ) => Effect.Effect<ReadonlyArray<ReservedWindow>, SqlError.SqlError>;
 }
 
@@ -342,7 +343,14 @@ export const AvailabilityRepoLive = Layer.effect(
           .pipe(Effect.map((rows) => rows.map(toDomain))),
 
       // Keep the liveness rule in sync with `isLive` in domain/appointment.
-      listReservedWindows: (practitionerProfileId, from, to, now, exceptOwnHold) =>
+      listReservedWindows: (
+        practitionerProfileId,
+        from,
+        to,
+        now,
+        exceptOwnHold,
+        exceptAppointmentId,
+      ) =>
         db
           .select({ startsAt: appointment.startsAt, endsAt: appointment.endsAt })
           .from(appointment)
@@ -355,6 +363,9 @@ export const AvailabilityRepoLive = Layer.effect(
                 eq(appointment.status, "confirmed"),
                 and(eq(appointment.status, "held"), gt(appointment.holdExpiresAt, now)),
               ),
+              exceptAppointmentId === undefined
+                ? undefined
+                : ne(appointment.id, exceptAppointmentId),
               exceptOwnHold === undefined
                 ? undefined
                 : not(

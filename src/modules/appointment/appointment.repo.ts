@@ -1,8 +1,10 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { and, asc, count, desc, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Context, Effect, Layer, Schema } from "effect";
+import { AppointmentSnapshot } from "@/domain/appointment/appointment-snapshot";
+import { appointmentChange } from "@/db/schema/appointment-change";
 import { appointment } from "@/db/schema/appointment";
 import { availabilitySlot } from "@/db/schema/availability-slot";
 import { caregiverLink } from "@/db/schema/caregiver-link";
@@ -109,6 +111,42 @@ export type AgendaEntry = {
 };
 
 export interface AppointmentRepoService {
+  readonly lockOperation: (actorUserId: string) => Effect.Effect<void, SqlError.SqlError>;
+  readonly lockExplicitSlots: (
+    ids: ReadonlyArray<string>,
+  ) => Effect.Effect<void, SqlError.SqlError>;
+  readonly findChange: (id: string) => Effect.Effect<
+    | {
+        readonly appointmentId: string;
+        readonly actorUserId: string;
+        readonly requestFingerprint: string;
+        readonly result: Appointment;
+      }
+    | undefined,
+    SqlError.SqlError
+  >;
+  readonly move: (input: {
+    readonly id: string;
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+    readonly slotKey: string;
+    readonly locationId: string | null;
+    readonly now: Date;
+  }) => Effect.Effect<Appointment, SqlError.SqlError>;
+  readonly retireExpired: (
+    practitionerId: string,
+    from: Date,
+    to: Date,
+    now: Date,
+  ) => Effect.Effect<void, SqlError.SqlError>;
+  readonly recordChange: (input: {
+    readonly operationId: string;
+    readonly actorUserId: string;
+    readonly fingerprint: string;
+    readonly previous: Appointment;
+    readonly result: Appointment;
+    readonly now: Date;
+  }) => Effect.Effect<void, SqlError.SqlError>;
   readonly practitionerCutoff: (id: string) => Effect.Effect<number | null, SqlError.SqlError>;
   readonly idExists: (id: string) => Effect.Effect<boolean, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Appointment | undefined, SqlError.SqlError>;
@@ -176,6 +214,91 @@ export const AppointmentRepoLive = Layer.effect(
     };
 
     return {
+      lockOperation: (actorUserId) =>
+        sqlClient`select pg_advisory_xact_lock(hashtext(${actorUserId}))`.pipe(Effect.asVoid),
+      lockExplicitSlots: (ids) =>
+        ids.length === 0
+          ? Effect.void
+          : db
+              .select({ id: availabilitySlot.id })
+              .from(availabilitySlot)
+              .where(inArray(availabilitySlot.id, [...ids]))
+              .orderBy(asc(availabilitySlot.id))
+              .for("update")
+              .pipe(Effect.asVoid),
+      findChange: (id) =>
+        db
+          .select()
+          .from(appointmentChange)
+          .where(eq(appointmentChange.id, id))
+          .limit(1)
+          .pipe(
+            Effect.flatMap((rows) => {
+              const row = rows[0];
+              return row === undefined
+                ? Effect.succeed(undefined)
+                : Schema.decodeUnknown(AppointmentSnapshot)(row.result).pipe(
+                    Effect.orDie,
+                    Effect.map((result) => ({
+                      appointmentId: row.appointmentId,
+                      actorUserId: row.actorUserId,
+                      requestFingerprint: row.requestFingerprint,
+                      result,
+                    })),
+                  );
+            }),
+          ),
+      move: (input) =>
+        db
+          .update(appointment)
+          .set({
+            startsAt: input.startsAt,
+            endsAt: input.endsAt,
+            slotKey: input.slotKey,
+            locationId: input.locationId,
+            revision: sql`${appointment.revision} + 1`,
+            updatedAt: input.now,
+          })
+          .where(eq(appointment.id, input.id))
+          .returning()
+          .pipe(
+            Effect.flatMap((rows) => first(rows, "Appointment reschedule")),
+            Effect.map(toDomain),
+          ),
+      retireExpired: (practitionerId, from, to, now) =>
+        db
+          .update(appointment)
+          .set({ status: "expired", revision: sql`${appointment.revision} + 1`, updatedAt: now })
+          .where(
+            and(
+              eq(appointment.practitionerProfileId, practitionerId),
+              eq(appointment.status, "held"),
+              lte(appointment.holdExpiresAt, now),
+              lt(appointment.startsAt, to),
+              gt(appointment.endsAt, from),
+            ),
+          )
+          .pipe(Effect.asVoid),
+      recordChange: (input) =>
+        Schema.encode(AppointmentSnapshot)(input.result).pipe(
+          Effect.orDie,
+          Effect.flatMap((result) =>
+            db
+              .insert(appointmentChange)
+              .values({
+                id: input.operationId,
+                appointmentId: input.result.id,
+                actorUserId: input.actorUserId,
+                requestFingerprint: input.fingerprint,
+                previousStartsAt: input.previous.startsAt,
+                previousEndsAt: input.previous.endsAt,
+                result,
+                createdAt: input.now,
+                updatedAt: input.now,
+              })
+              .pipe(Effect.asVoid),
+          ),
+        ),
       practitionerCutoff: (id) =>
         db
           .select({ cutoff: practitionerProfile.cancellationCutoffHours })
