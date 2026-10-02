@@ -61,10 +61,10 @@ console.log(`kanasante-api listening on http://localhost:${server.port}`);
 // Graceful shutdown: stop new traffic, release the runtime + auth pools, exit.
 const shutdown = async (): Promise<void> => {
   setReady(false);
+  await server.stop();
   if (deliveryFiber !== undefined) await Effect.runPromise(Fiber.interrupt(deliveryFiber));
   await runtime.dispose();
   await auth.close();
-  server.stop();
   process.exit(0);
 };
 

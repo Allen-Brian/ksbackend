@@ -1128,6 +1128,21 @@ describe("appointments API — atomic rescheduling", () => {
     expect(laterResponse.status).toBe(200);
     const later = await json<AppointmentBody>(laterResponse);
     expect(await json<AppointmentBody>(await move(original, first, operationId))).toEqual(moved);
+    // Omitted and explicit-null fields are distinct requests: a replay must not
+    // silently accept a payload that differs from the successful operation.
+    const changedPayload = await harness.post(
+      `/v1/appointments/${original.id}/reschedule`,
+      {
+        operationId,
+        expectedRevision: original.revision,
+        slotKey: first.key,
+        startsAt: first.startsAt,
+        locationId: null,
+      },
+      patient,
+    );
+    expect(changedPayload.status).toBe(409);
+    expect((await json<ErrorBody>(changedPayload)).error.code).toBe("CONFLICT");
     expect((await json<AppointmentBody>(await get(original.id))).startsAt).toBe(second.startsAt);
     expect((await move(original, source)).status).toBe(409);
     expect((await move(original, second, operationId)).status).toBe(409);

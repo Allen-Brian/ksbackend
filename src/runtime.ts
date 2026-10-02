@@ -1,6 +1,7 @@
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { CryptoLive } from "./infra/crypto";
 import { DatabaseLive } from "./infra/db";
+import { DeliveryTransport, DeliveryTransportError } from "./infra/delivery-transport";
 import { EmailSender, EmailSenderConsoleLive, EmailSenderResendLive } from "./infra/email";
 import { Geocoder, GeocoderFakeLive, GeocoderNominatimLive } from "./infra/geocoding";
 import { HealthLive } from "./infra/health";
@@ -33,7 +34,10 @@ import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
 import { PatientSearchRepoLive } from "./modules/patient/search/search.repo";
 import { PatientSearchServiceLive } from "./modules/patient/search/search.service";
-import { PushSubscriptionRepoLive } from "./modules/push-subscription/push-subscription.repo";
+import {
+  PushSubscriptionRepo,
+  PushSubscriptionRepoLive,
+} from "./modules/push-subscription/push-subscription.repo";
 import { PushSubscriptionServiceLive } from "./modules/push-subscription/push-subscription.service";
 import { ProfileRepoLive } from "./modules/profile/profile.repo";
 import { ProfileServiceLive } from "./modules/profile/profile.service";
@@ -256,3 +260,33 @@ export const infraFor = (appEnv: string): InfraLayers => ({
 /** Build the one application runtime (production entry). */
 export const makeRuntime = (appEnv: string) =>
   ManagedRuntime.make(makeAppLayer(DatabaseLive, infraFor(appEnv)));
+
+/** Operator backfill has no sending capability and needs only database config. */
+export const makeDeliveryBackfillRuntime = () => {
+  const database = DatabaseLive;
+  const repo = DeliveryRepoLive.pipe(Layer.provide(database));
+  const subscriptions = PushSubscriptionRepoLive.pipe(Layer.provide(database));
+  const transport = Layer.effect(
+    DeliveryTransport,
+    Effect.map(
+      PushSubscriptionRepo,
+      (pushRepo) =>
+        ({
+          listPushSubscriptions: pushRepo.findByUserId,
+          send: () =>
+            Effect.fail(
+              new DeliveryTransportError({
+                reason: "Provider delivery is disabled in the backfill command",
+                retryable: false,
+                ambiguous: false,
+              }),
+            ),
+        }) satisfies typeof DeliveryTransport.Service,
+    ),
+  ).pipe(Layer.provide(subscriptions));
+  return ManagedRuntime.make(
+    DeliveryServiceLive.pipe(
+      Layer.provide(Layer.mergeAll(repo, transport, IdGeneratorLive, database)),
+    ),
+  );
+};

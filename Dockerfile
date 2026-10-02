@@ -29,6 +29,7 @@ COPY package.json tsconfig.json .env.schema ./
 RUN sed -i '/@generateTsTypes/d' .env.schema
 COPY drizzle ./drizzle
 COPY src ./src
+COPY scripts/backfill-delivery.ts ./scripts/backfill-delivery.ts
 
 USER bun
 EXPOSE 3000

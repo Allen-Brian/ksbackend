@@ -188,7 +188,10 @@ export const DeliveryServiceLive = Layer.effect(
           repo.finish({
             id: row.id,
             token,
-            state: state === "suppressed" && row.acceptanceUnknown ? "needs_review" : state,
+            state:
+              (state === "suppressed" || state === "failed") && row.acceptanceUnknown
+                ? "needs_review"
+                : state,
             now: currentTime,
             ...(error !== undefined && { error }),
           });
@@ -206,6 +209,9 @@ export const DeliveryServiceLive = Layer.effect(
         if (
           current === undefined ||
           current.revision !== row.revision ||
+          (snapshot.event === "cancelled"
+            ? current.status !== "cancelled"
+            : current.status !== "confirmed") ||
           (snapshot.event === "reminder" &&
             (current.status !== "confirmed" || current.startsAt.getTime() <= currentTime.getTime()))
         )

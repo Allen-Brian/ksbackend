@@ -19,8 +19,10 @@ const recipient = "patient";
 const harness = (
   options: {
     revision?: number;
+    status?: string;
     email?: string;
     frozenEmail?: string;
+    invalidFrozen?: boolean;
     transient?: boolean;
     expired?: boolean;
     unknown?: boolean;
@@ -42,8 +44,9 @@ const harness = (
       timezone: "Africa/Douala",
       consultationType: "video",
     },
-    frozenPayload:
-      options.frozenEmail === undefined
+    frozenPayload: options.invalidFrozen
+      ? { invalid: true }
+      : options.frozenEmail === undefined
         ? null
         : {
             to: options.frozenEmail,
@@ -83,7 +86,7 @@ const harness = (
       Effect.succeed({
         id: appointmentId,
         revision: options.revision ?? 1,
-        status: "confirmed",
+        status: options.status ?? "confirmed",
         startsAt: instant(2 * 86_400_000),
         endsAt: instant(2 * 86_400_000 + 30 * 60_000),
         consultationType: "video",
@@ -206,6 +209,41 @@ it.effect("does not resend frozen appointment details to an obsolete email addre
 });
 it.effect("retains ambiguous expired attempts for operator review", () => {
   const fake = harness({ expired: true, unknown: true });
+  return Effect.gen(function* () {
+    const service = yield* DeliveryService;
+    yield* service.runPass();
+    expect(fake.row().state).toBe("needs_review");
+    expect(fake.mailbox).toHaveLength(0);
+  }).pipe(Effect.provide(fake.layer), Effect.withConfigProvider(ConfigProvider.fromMap(new Map())));
+});
+
+it.effect(
+  "suppresses a confirmation when a rolled-back application cancels without advancing revision",
+  () => {
+    const fake = harness({ status: "cancelled" });
+    return Effect.gen(function* () {
+      const service = yield* DeliveryService;
+      yield* service.runPass();
+      expect(fake.row().state).toBe("suppressed");
+      expect(fake.mailbox).toHaveLength(0);
+    }).pipe(
+      Effect.provide(fake.layer),
+      Effect.withConfigProvider(ConfigProvider.fromMap(new Map())),
+    );
+  },
+);
+it.effect("retains prior provider uncertainty when an obsolete email prevents retry", () => {
+  const fake = harness({ unknown: true, frozenEmail: "old@example.com", email: "new@example.com" });
+  return Effect.gen(function* () {
+    const service = yield* DeliveryService;
+    yield* service.runPass();
+    expect(fake.row().state).toBe("needs_review");
+    expect(fake.mailbox).toHaveLength(0);
+  }).pipe(Effect.provide(fake.layer), Effect.withConfigProvider(ConfigProvider.fromMap(new Map())));
+});
+
+it.effect("retains prior acceptance uncertainty when frozen payload cannot be decoded", () => {
+  const fake = harness({ unknown: true, invalidFrozen: true });
   return Effect.gen(function* () {
     const service = yield* DeliveryService;
     yield* service.runPass();

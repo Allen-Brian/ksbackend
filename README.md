@@ -101,3 +101,5 @@ The scaffold is complete — every pattern has a working, tested reference imple
   CI/CD to the dev VM — see [docs/deployment.md](./docs/deployment.md).
 
 Adding a feature = follow [`docs/adding-a-module.md`](./docs/adding-a-module.md) step by step.
+
+Appointment policy, notification worker and reminder backfill: [rollout guide](docs/appointment-delivery.md). Browser Web Push setup: [frontend handoff](docs/web-push.md).

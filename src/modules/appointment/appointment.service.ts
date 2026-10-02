@@ -527,6 +527,7 @@ export const AppointmentServiceLive = Layer.effect(
         input.expectedRevision,
         input.slotKey,
         input.startsAt.toISOString(),
+        input.locationId !== undefined,
         input.locationId ?? null,
       ]);
       return sql

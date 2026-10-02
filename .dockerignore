@@ -3,7 +3,8 @@ coverage
 dist
 test
 docs
-scripts
+scripts/*
+!scripts/backfill-delivery.ts
 .github
 .claude
 .env.local
