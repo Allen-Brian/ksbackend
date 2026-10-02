@@ -1,8 +1,9 @@
-import { Config, Effect, Redacted } from "effect";
+import { Config, Effect, Fiber, Redacted, Schedule } from "effect";
 import { createApp, setReady } from "./http/app";
 import { loadAuthOptions, makeAuth } from "./infra/auth";
 import { AppConfig } from "./infra/config";
 import { makeResendClient } from "./infra/email";
+import { DeliveryService } from "./modules/delivery/delivery.service";
 import { makeRuntime } from "./runtime";
 
 const { appEnv, port, corsOrigins, defaultLocale } = await Effect.runPromise(AppConfig);
@@ -40,12 +41,27 @@ const auth = makeAuth({
 });
 const app = createApp(runtime, auth.instance, { corsOrigins, defaultLocale });
 
+const deliveryEnabled = await Effect.runPromise(
+  Config.boolean("DELIVERY_WORKER_ENABLED").pipe(Config.withDefault(false)),
+);
+const deliveryFiber = deliveryEnabled
+  ? runtime.runFork(
+      Effect.flatMap(DeliveryService, (service) => service.run()).pipe(
+        Effect.catchAllCause(() =>
+          Effect.logError("Delivery worker stopped unexpectedly; restarting"),
+        ),
+        Effect.repeat(Schedule.spaced("5 seconds")),
+      ),
+    )
+  : undefined;
+
 const server = Bun.serve({ port, fetch: app.fetch });
 console.log(`kanasante-api listening on http://localhost:${server.port}`);
 
 // Graceful shutdown: stop new traffic, release the runtime + auth pools, exit.
 const shutdown = async (): Promise<void> => {
   setReady(false);
+  if (deliveryFiber !== undefined) await Effect.runPromise(Fiber.interrupt(deliveryFiber));
   await runtime.dispose();
   await auth.close();
   server.stop();

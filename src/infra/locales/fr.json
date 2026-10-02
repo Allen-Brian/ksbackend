@@ -44,5 +44,12 @@
   "emails.verificationRejected.body": "Nous n'avons pas pu compléter votre vérification. Motif : {reason}. Veuillez corriger vos informations et soumettre à nouveau.",
   "emails.caregiverInvitation.subject": "Vous avez été invité sur KanaSanté",
   "emails.caregiverInvitation.heading": "Une invitation d'aidant",
-  "emails.caregiverInvitation.body": "Quelqu'un vous a invité à être rattaché comme sa personne à charge sur KanaSanté afin de l'aider à gérer vos soins. Utilisez ce code pour accepter : {token}"
+  "emails.caregiverInvitation.body": "Quelqu'un vous a invité à être rattaché comme sa personne à charge sur KanaSanté afin de l'aider à gérer vos soins. Utilisez ce code pour accepter : {token}",
+  "emails.appointment.confirmed.subject": "Rendez-vous confirmé",
+  "emails.appointment.cancelled.subject": "Rendez-vous annulé",
+  "emails.appointment.rescheduled.subject": "Rendez-vous reporté",
+  "emails.appointment.reminder.subject": "Rappel de rendez-vous",
+  "emails.appointment.body": "Rendez-vous : {time} ({timezone}).",
+  "emails.appointment.previous": "Ancien horaire : {time}.",
+  "emails.appointment.action": "Connectez-vous à Kanasante pour consulter votre rendez-vous."
 }

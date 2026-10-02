@@ -27,3 +27,4 @@ export * from "./verification-review";
 
 export * from "./appointment-change";
 export * from "./push-subscription";
+export * from "./notification-delivery";

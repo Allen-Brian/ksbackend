@@ -14,13 +14,24 @@ const codeTemplate = load("code.hbs");
 const noticeTemplate = load("notice.hbs");
 
 export type EmailScenario =
+  | {
+      readonly kind: "appointment";
+      readonly event: "confirmed" | "cancelled" | "rescheduled" | "reminder";
+      readonly startsAt: string;
+      readonly timezone: string;
+      readonly previousStartsAt?: string | undefined;
+    }
   | { readonly kind: "otp"; readonly otp: string }
   | { readonly kind: "reset-password"; readonly otp: string }
   | { readonly kind: "verification-approved" }
   | { readonly kind: "verification-rejected"; readonly reason: string }
   | { readonly kind: "caregiver-invitation"; readonly token: string };
 
-export type RenderedEmail = { readonly subject: string; readonly html: string };
+export type RenderedEmail = {
+  readonly subject: string;
+  readonly html: string;
+  readonly text?: string;
+};
 
 /** Render a localized, layout-wrapped HTML email for a given scenario. */
 export const renderEmail = (scenario: EmailScenario, locale: Locale): RenderedEmail => {
@@ -32,6 +43,26 @@ export const renderEmail = (scenario: EmailScenario, locale: Locale): RenderedEm
   });
 
   switch (scenario.kind) {
+    case "appointment": {
+      const format = (value: string) =>
+        new Intl.DateTimeFormat(locale === "fr" ? "fr-CM" : "en-GB", {
+          dateStyle: "full",
+          timeStyle: "short",
+          timeZone: scenario.timezone,
+        }).format(new Date(value));
+      const subject = t(`emails.appointment.${scenario.event}.subject`);
+      const text = [
+        t("emails.appointment.body", {
+          time: format(scenario.startsAt),
+          timezone: scenario.timezone,
+        }),
+        ...(scenario.previousStartsAt === undefined
+          ? []
+          : [t("emails.appointment.previous", { time: format(scenario.previousStartsAt) })]),
+        t("emails.appointment.action"),
+      ].join(" ");
+      return { ...wrap(subject, noticeTemplate({ heading: subject, message: text })), text };
+    }
     case "otp":
     case "reset-password": {
       const ns = scenario.kind === "otp" ? "emails.otp" : "emails.resetPassword";

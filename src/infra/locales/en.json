@@ -44,5 +44,12 @@
   "emails.verificationRejected.body": "We couldn't complete your verification. Reason: {reason}. Please correct your details and resubmit.",
   "emails.caregiverInvitation.subject": "You've been invited on KanaSanté",
   "emails.caregiverInvitation.heading": "A caregiver invitation",
-  "emails.caregiverInvitation.body": "Someone invited you to be linked as their dependent on KanaSanté so they can help manage your care. Use this code to accept: {token}"
+  "emails.caregiverInvitation.body": "Someone invited you to be linked as their dependent on KanaSanté so they can help manage your care. Use this code to accept: {token}",
+  "emails.appointment.confirmed.subject": "Appointment confirmed",
+  "emails.appointment.cancelled.subject": "Appointment cancelled",
+  "emails.appointment.rescheduled.subject": "Appointment rescheduled",
+  "emails.appointment.reminder.subject": "Appointment reminder",
+  "emails.appointment.body": "Appointment: {time} ({timezone}).",
+  "emails.appointment.previous": "Previous time: {time}.",
+  "emails.appointment.action": "Sign in to Kanasante to view your appointment."
 }

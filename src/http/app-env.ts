@@ -8,6 +8,7 @@ import type { RateLimiter } from "@/infra/rate-limiter";
 import type { AdminService } from "@/modules/admin/admin.service";
 import type { AppointmentService } from "@/modules/appointment/appointment.service";
 import type { AvailabilityService } from "@/modules/availability/availability.service";
+import type { DeliveryService } from "@/modules/delivery/delivery.service";
 import type { DependentService } from "@/modules/dependent/dependent.service";
 import type { InvitationService } from "@/modules/invitation/invitation.service";
 import type { LocationService } from "@/modules/location/location.service";
@@ -50,6 +51,7 @@ export type AppServices =
   | AdminService
   | ReviewService
   | AvailabilityService
+  | DeliveryService
   | AppointmentService
   | BookingPolicyService
   | DependentService

@@ -5,13 +5,22 @@ export type EmailMessage = {
   readonly to: string;
   readonly subject: string;
   readonly html: string;
+  readonly idempotencyKey?: string | undefined;
 };
 
-export class EmailError extends Data.TaggedError("EmailError")<{ readonly reason: string }> {}
+export class EmailError extends Data.TaggedError("EmailError")<{
+  readonly reason: string;
+  readonly retryable?: boolean;
+  readonly ambiguous?: boolean;
+  readonly message?: string;
+}> {}
 
 /** Effect email seam for OUR emails (verification-decision notifications, etc.). */
 export interface EmailSenderService {
   readonly send: (message: EmailMessage) => Effect.Effect<void, EmailError>;
+  readonly sendReceipt?: (
+    message: EmailMessage,
+  ) => Effect.Effect<{ readonly providerId: string | undefined }, EmailError>;
 }
 export class EmailSender extends Context.Tag("EmailSender")<EmailSender, EmailSenderService>() {}
 
@@ -19,7 +28,12 @@ export class EmailSender extends Context.Tag("EmailSender")<EmailSender, EmailSe
  * Plain (Promise-based) client for better-auth's emailOTP callback, which runs
  * OUTSIDE Effect. Backed by the same Resend account as the Effect `EmailSender`.
  */
-export type EmailClient = { readonly send: (message: EmailMessage) => Promise<void> };
+export type EmailClient = {
+  readonly send: (message: EmailMessage) => Promise<void>;
+  readonly sendReceipt?: (
+    message: EmailMessage,
+  ) => Promise<{ readonly providerId: string | undefined }>;
+};
 
 /**
  * `baseUrl` points the Resend SDK somewhere other than the real API — locally at
@@ -36,13 +50,30 @@ export const makeResendClient = (apiKey: string, from: string, baseUrl?: string)
     unset ? "re_unset" : apiKey,
     baseUrl !== undefined ? { baseUrl } : undefined,
   );
-  return {
-    send: async ({ to, subject, html }) => {
-      if (unset) throw new Error("RESEND_API_KEY is not set — email cannot be sent");
-      const { error } = await resend.emails.send({ from, to, subject, html });
-      if (error) throw new Error(error.message);
-    },
+  const sendReceipt = async ({ to, subject, html, idempotencyKey }: EmailMessage) => {
+    if (unset)
+      throw new EmailError({
+        reason: "RESEND_API_KEY is not set — email cannot be sent",
+        message: "RESEND_API_KEY is not set — email cannot be sent",
+        retryable: false,
+        ambiguous: false,
+      });
+    const { error, data } = await resend.emails.send(
+      { from, to, subject, html },
+      idempotencyKey === undefined ? undefined : { idempotencyKey },
+    );
+    if (error)
+      throw new EmailError({
+        reason: `Email provider error: ${error.name}`,
+        retryable:
+          error.name === "rate_limit_exceeded" ||
+          error.name === "application_error" ||
+          error.name === "internal_server_error",
+        ambiguous: error.name === "application_error" || error.name === "internal_server_error",
+      });
+    return { providerId: data?.id };
   };
+  return { send: (message) => sendReceipt(message).then(() => {}), sendReceipt };
 };
 
 /** Dev/console client — prints instead of sending (no Resend account needed locally). */
@@ -59,10 +90,32 @@ export const EmailSenderResendLive = Layer.effect(
     const baseUrl = yield* Config.string("RESEND_BASE_URL").pipe(Config.withDefault(""));
     const client = makeResendClient(apiKey, from, baseUrl === "" ? undefined : baseUrl);
     return {
+      sendReceipt: (message: EmailMessage) =>
+        Effect.tryPromise({
+          try: () =>
+            client.sendReceipt === undefined
+              ? client.send(message).then(() => ({ providerId: undefined }))
+              : client.sendReceipt(message),
+          catch: (cause) =>
+            cause instanceof EmailError
+              ? cause
+              : new EmailError({
+                  reason: "Email provider request failed",
+                  retryable: true,
+                  ambiguous: true,
+                }),
+        }),
       send: (message) =>
         Effect.tryPromise({
           try: () => client.send(message),
-          catch: (cause) => new EmailError({ reason: String(cause) }),
+          catch: (cause) =>
+            cause instanceof EmailError
+              ? cause
+              : new EmailError({
+                  reason: "Email provider request failed",
+                  retryable: true,
+                  ambiguous: true,
+                }),
         }),
     };
   }),
@@ -75,7 +128,14 @@ export const EmailSenderConsoleLive = Layer.sync(EmailSender, () => {
     send: (message) =>
       Effect.tryPromise({
         try: () => client.send(message),
-        catch: (cause) => new EmailError({ reason: String(cause) }),
+        catch: (cause) =>
+          cause instanceof EmailError
+            ? cause
+            : new EmailError({
+                reason: "Email provider request failed",
+                retryable: true,
+                ambiguous: true,
+              }),
       }),
   };
 });

@@ -16,6 +16,9 @@ import { AppointmentRepoLive } from "./modules/appointment/appointment.repo";
 import { AppointmentServiceLive } from "./modules/appointment/appointment.service";
 import { AvailabilityRepoLive } from "./modules/availability/availability.repo";
 import { AvailabilityServiceLive } from "./modules/availability/availability.service";
+import { DeliveryRepoLive } from "./modules/delivery/delivery.repo";
+import { DeliveryServiceLive } from "./modules/delivery/delivery.service";
+import { DeliveryTransportLive } from "./modules/delivery/transport/transport.service";
 import { DependentRepoLive } from "./modules/dependent/dependent.repo";
 import { DependentServiceLive } from "./modules/dependent/dependent.service";
 import { InvitationRepoLive } from "./modules/invitation/invitation.repo";
@@ -98,6 +101,14 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const payoutRepo = PayoutRepoLive.pipe(Layer.provide(database));
   const reviewRepo = ReviewRepoLive.pipe(Layer.provide(database));
   const appointmentRepo = AppointmentRepoLive.pipe(Layer.provide(database));
+
+  const deliveryRepo = DeliveryRepoLive.pipe(Layer.provide(database));
+  const deliveryTransport = DeliveryTransportLive.pipe(
+    Layer.provide(Layer.mergeAll(infra.email, infra.push, pushSubscriptionRepo)),
+  );
+  const delivery = DeliveryServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(deliveryRepo, deliveryTransport, idGen, database)),
+  );
 
   const bookingPolicyRepo = BookingPolicyRepoLive.pipe(Layer.provide(database));
   const bookingPolicy = BookingPolicyServiceLive.pipe(Layer.provide(bookingPolicyRepo));
@@ -182,6 +193,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     Layer.provide(
       Layer.mergeAll(
         appointmentRepo,
+        delivery,
         availabilityRepo,
         practitionerRepo,
         offeringRepo,
@@ -217,6 +229,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
     payout,
     dependent,
     appointment,
+    delivery,
     bookingPolicy,
     invitation,
     health,

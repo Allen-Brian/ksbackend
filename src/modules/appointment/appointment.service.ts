@@ -29,6 +29,7 @@ import { requireAnyRole } from "@/infra/authz";
 import { IdGenerator } from "@/infra/ids";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { AvailabilityRepo } from "@/modules/availability/availability.repo";
+import { DeliveryService } from "@/modules/delivery/delivery.service";
 import { DependentRepo } from "@/modules/dependent/dependent.repo";
 import { LocationRepo } from "@/modules/location/location.repo";
 import { OfferingRepo } from "@/modules/offering/offering.repo";
@@ -177,6 +178,7 @@ export const AppointmentServiceLive = Layer.effect(
   AppointmentService,
   Effect.gen(function* () {
     const repo = yield* AppointmentRepo;
+    const delivery = yield* DeliveryService;
     const availability = yield* AvailabilityRepo;
     const practitioners = yield* PractitionerRepo;
     const offerings = yield* OfferingRepo;
@@ -449,7 +451,13 @@ export const AppointmentServiceLive = Layer.effect(
               yield* repo.setStatus(id, "cancelled", current);
               return { error: new SlotUnavailable({ slotKey: found.slotKey }) };
             }
-            return { appointment: yield* repo.setStatus(id, "confirmed", current) };
+            const confirmed = yield* repo.setStatus(id, "confirmed", current);
+            yield* delivery.enqueue({
+              appointmentId: id,
+              revision: confirmed.revision,
+              kind: "confirmed",
+            });
+            return { appointment: confirmed };
           }),
         )
         .pipe(
@@ -481,7 +489,14 @@ export const AppointmentServiceLive = Layer.effect(
               if (status === "confirmed" && slotId !== undefined) {
                 yield* repo.reopenExplicitSlot(slotId);
               }
-              return yield* repo.setStatus(id, "cancelled", current);
+              const cancelled = yield* repo.setStatus(id, "cancelled", current);
+              if (status === "confirmed")
+                yield* delivery.enqueue({
+                  appointmentId: id,
+                  revision: cancelled.revision,
+                  kind: "cancelled",
+                });
+              return cancelled;
             }),
           );
         }),
@@ -644,6 +659,12 @@ export const AppointmentServiceLive = Layer.effect(
               now: current,
             });
             if (oldSlotId !== undefined) yield* repo.reopenExplicitSlot(oldSlotId);
+            yield* delivery.enqueue({
+              appointmentId: id,
+              revision: moved.revision,
+              kind: "rescheduled",
+              previousStartsAt: found.startsAt,
+            });
             yield* repo.recordChange({
               operationId: input.operationId,
               actorUserId: userId,

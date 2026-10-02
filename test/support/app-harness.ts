@@ -12,6 +12,7 @@ import { GeocoderFakeLive } from "@/infra/geocoding";
 import { FileScanner, type ScanStatus } from "@/infra/scanner";
 import { FileStorageFakeLive } from "@/infra/storage";
 import { PushSender, type PushSenderService } from "@/infra/push";
+import { DeliveryService } from "@/modules/delivery/delivery.service";
 import { makeAppLayer } from "@/runtime";
 import { databaseLayerFromUrl, startTestPostgres } from "./testcontainers";
 
@@ -26,6 +27,12 @@ export type TestHarness = {
   /** Promote an existing user to admin with the given scope (role + admin_profile). */
   readonly promoteToAdmin: (email: string, scope?: AdminScope) => Promise<void>;
   readonly otpFor: (email: string) => string;
+  readonly runDeliveryPass: () => Promise<number>;
+  readonly backfillDelivery: (input?: {
+    readonly limit?: number;
+    readonly cursor?: string;
+  }) => Promise<{ readonly count: number; readonly nextCursor: string | undefined }>;
+  readonly advanceNow: (now: Date) => void;
   readonly dispose: () => Promise<void>;
 };
 
@@ -63,15 +70,15 @@ type HarnessOptions = {
   readonly now?: Date;
 };
 
-const pinnedClock = (now: Date): Clock.Clock => {
+const pinnedClock = (readNow: () => Date): Clock.Clock => {
   const live = Clock.make();
-  const millis = now.getTime();
+  const millis = () => readNow().getTime();
   return {
     [Clock.ClockTypeId]: Clock.ClockTypeId,
-    currentTimeMillis: Effect.succeed(millis),
-    currentTimeNanos: Effect.succeed(BigInt(millis) * 1_000_000n),
-    unsafeCurrentTimeMillis: () => millis,
-    unsafeCurrentTimeNanos: () => BigInt(millis) * 1_000_000n,
+    currentTimeMillis: Effect.sync(millis),
+    currentTimeNanos: Effect.sync(() => BigInt(millis()) * 1_000_000n),
+    unsafeCurrentTimeMillis: millis,
+    unsafeCurrentTimeNanos: () => BigInt(millis()) * 1_000_000n,
     sleep: (duration) => live.sleep(duration),
   };
 };
@@ -123,10 +130,14 @@ export const createTestHarness = async (
             ),
           ),
         );
+  let pinnedNow = authOpts?.now;
   const appLayer =
     authOpts?.now === undefined
       ? configuredLayer
-      : Layer.provide(configuredLayer, Layer.setClock(pinnedClock(authOpts.now)));
+      : Layer.provide(
+          configuredLayer,
+          Layer.setClock(pinnedClock(() => pinnedNow ?? authOpts.now ?? new Date(0))),
+        );
 
   const runtime = ManagedRuntime.make(appLayer);
   const authBase = {
@@ -211,6 +222,15 @@ export const createTestHarness = async (
     userIdFor,
     promoteToAdmin,
     otpFor,
+    runDeliveryPass: () =>
+      runtime.runPromise(Effect.flatMap(DeliveryService, (service) => service.runPass())),
+    backfillDelivery: (input) =>
+      runtime.runPromise(Effect.flatMap(DeliveryService, (service) => service.backfill(input))),
+    advanceNow: (now) => {
+      if (authOpts?.now === undefined)
+        throw new Error("Harness clock must be pinned before advancing");
+      pinnedNow = now;
+    },
     dispose,
   };
 };
