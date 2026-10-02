@@ -26,3 +26,4 @@ export * from "./review";
 export * from "./verification-review";
 
 export * from "./appointment-change";
+export * from "./push-subscription";

@@ -18,6 +18,7 @@ import type { PatientSearchService } from "@/modules/patient/search/search.servi
 import type { BookingPolicyService } from "@/modules/practitioner/booking-policy/booking-policy.service";
 import type { PractitionerService } from "@/modules/practitioner/practitioner.service";
 import type { PractitionerSearchService } from "@/modules/practitioner/search/search.service";
+import type { PushSubscriptionService } from "@/modules/push-subscription/push-subscription.service";
 import type { ProfileService } from "@/modules/profile/profile.service";
 import type { PayoutService } from "@/modules/payout/payout.service";
 import type { QualificationService } from "@/modules/qualification/qualification.service";
@@ -41,6 +42,7 @@ export type AppServices =
   | RateLimiter
   | ProfileService
   | NotificationService
+  | PushSubscriptionService
   | PatientService
   | PatientSearchService
   | PractitionerService

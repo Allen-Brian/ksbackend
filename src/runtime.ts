@@ -1,4 +1,4 @@
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { CryptoLive } from "./infra/crypto";
 import { DatabaseLive } from "./infra/db";
 import { EmailSender, EmailSenderConsoleLive, EmailSenderResendLive } from "./infra/email";
@@ -6,6 +6,7 @@ import { Geocoder, GeocoderFakeLive, GeocoderNominatimLive } from "./infra/geoco
 import { HealthLive } from "./infra/health";
 import { IdGeneratorLive } from "./infra/ids";
 import { LoggerLive } from "./infra/logger";
+import { PushSender, PushSenderLive } from "./infra/push";
 import { RateLimiterInMemoryLive } from "./infra/rate-limiter";
 import { FileScanner, FileScannerCleanLive, FileScannerS3Live } from "./infra/scanner";
 import { FileStorage, FileStorageFakeLive, FileStorageS3Live } from "./infra/storage";
@@ -29,6 +30,8 @@ import { PatientRepoLive } from "./modules/patient/patient.repo";
 import { PatientServiceLive } from "./modules/patient/patient.service";
 import { PatientSearchRepoLive } from "./modules/patient/search/search.repo";
 import { PatientSearchServiceLive } from "./modules/patient/search/search.service";
+import { PushSubscriptionRepoLive } from "./modules/push-subscription/push-subscription.repo";
+import { PushSubscriptionServiceLive } from "./modules/push-subscription/push-subscription.service";
 import { ProfileRepoLive } from "./modules/profile/profile.repo";
 import { ProfileServiceLive } from "./modules/profile/profile.service";
 import { PayoutRepoLive } from "./modules/payout/payout.repo";
@@ -49,6 +52,7 @@ import { PractitionerSearchServiceLive } from "./modules/practitioner/search/sea
 /** Swappable external infra. Real drivers when serving; fakes only under test. */
 export type InfraLayers = {
   readonly email: Layer.Layer<EmailSender, unknown, never>;
+  readonly push: Layer.Layer<PushSender, unknown, never>;
   readonly storage: Layer.Layer<FileStorage, unknown, never>;
   readonly scanner: Layer.Layer<FileScanner, unknown, never>;
   readonly geocoder: Layer.Layer<Geocoder, unknown, never>;
@@ -61,6 +65,7 @@ export type InfraLayers = {
  */
 export const fakeInfra: InfraLayers = {
   email: EmailSenderConsoleLive,
+  push: Layer.succeed(PushSender, { publicKey: "test-public-key", send: () => Effect.void }),
   storage: FileStorageFakeLive,
   scanner: FileScannerCleanLive,
   geocoder: GeocoderFakeLive,
@@ -79,6 +84,10 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   const practitionerRepo = PractitionerRepoLive.pipe(Layer.provide(database));
   const dependentRepo = DependentRepoLive.pipe(Layer.provide(database));
   const notificationRepo = NotificationRepoLive.pipe(Layer.provide(database));
+  const pushSubscriptionRepo = PushSubscriptionRepoLive.pipe(Layer.provide(database));
+  const pushSubscription = PushSubscriptionServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(pushSubscriptionRepo, idGen, infra.push, database)),
+  );
   const adminRepo = AdminRepoLive.pipe(Layer.provide(database));
   const invitationRepo = InvitationRepoLive.pipe(Layer.provide(database));
   const availabilityRepo = AvailabilityRepoLive.pipe(Layer.provide(database));
@@ -193,6 +202,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
   return Layer.mergeAll(
     profile,
     notification,
+    pushSubscription,
     patient,
     patientSearch,
     practitioner,
@@ -224,6 +234,7 @@ export const makeAppLayer = (database: typeof DatabaseLive, infra: InfraLayers) 
  */
 export const infraFor = (appEnv: string): InfraLayers => ({
   email: EmailSenderResendLive,
+  push: PushSenderLive,
   storage: FileStorageS3Live,
   scanner: appEnv === "prod" || appEnv === "staging" ? FileScannerS3Live : FileScannerCleanLive,
   geocoder: appEnv === "prod" || appEnv === "staging" ? GeocoderNominatimLive : GeocoderFakeLive,

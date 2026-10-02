@@ -28,6 +28,7 @@ import { registerReviewRoutes } from "@/modules/review/review.routes";
 import { registerQualificationRoutes } from "@/modules/qualification/qualification.routes";
 import { registerReferenceRoutes } from "@/modules/reference/reference.routes";
 import { registerAvailabilityRoutes } from "@/modules/availability/availability.routes";
+import { registerPushSubscriptionRoutes } from "@/modules/push-subscription/push-subscription.routes";
 import { registerProfileRoutes } from "@/modules/profile/profile.routes";
 import type { AppEnv, AppRuntime } from "./app-env";
 import { toErrorResponse } from "./error-mapper";
@@ -167,6 +168,7 @@ export const createApp = (
   registerMeRoute(app, runtime);
   registerProfileRoutes(app, runtime);
   registerNotificationRoutes(app, runtime);
+  registerPushSubscriptionRoutes(app, runtime);
   registerPatientRoutes(app, runtime);
   registerPatientSearchRoutes(app, runtime);
   registerPractitionerRoutes(app, runtime);

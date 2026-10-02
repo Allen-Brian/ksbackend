@@ -1,0 +1,21 @@
+meta {
+  name: Register browser push subscription
+  type: http
+  seq: 21
+}
+post {
+  url: {{baseUrl}}/v1/me/push-subscriptions
+  body: json
+  auth: inherit
+}
+body:json {
+  {
+    "endpoint": "{{pushEndpoint}}",
+    "keys": { "p256dh": "{{pushP256dh}}", "auth": "{{pushAuth}}" }
+  }
+}
+docs {
+  Obtain endpoint and keys from browser PushManager.subscribe with the VAPID public key.
+  Set pushEndpoint, pushP256dh and pushAuth before running this request.
+  Registering a browser does not enable push notifications: explicitly enable the appointments push preference.
+}

@@ -1,0 +1,14 @@
+meta {
+  name: Remove browser push subscription
+  type: http
+  seq: 22
+}
+delete {
+  url: {{baseUrl}}/v1/me/push-subscriptions/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{pushSubscriptionId}}
+}

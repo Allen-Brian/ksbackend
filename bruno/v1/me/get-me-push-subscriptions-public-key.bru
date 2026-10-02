@@ -1,0 +1,10 @@
+meta {
+  name: Get browser push public key
+  type: http
+  seq: 20
+}
+get {
+  url: {{baseUrl}}/v1/me/push-subscriptions/public-key
+  body: none
+  auth: inherit
+}

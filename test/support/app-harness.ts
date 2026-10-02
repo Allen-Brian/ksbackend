@@ -11,6 +11,7 @@ import { type EmailClient, EmailSender, type EmailMessage } from "@/infra/email"
 import { GeocoderFakeLive } from "@/infra/geocoding";
 import { FileScanner, type ScanStatus } from "@/infra/scanner";
 import { FileStorageFakeLive } from "@/infra/storage";
+import { PushSender, type PushSenderService } from "@/infra/push";
 import { makeAppLayer } from "@/runtime";
 import { databaseLayerFromUrl, startTestPostgres } from "./testcontainers";
 
@@ -18,6 +19,7 @@ export type TestHarness = {
   readonly app: ReturnType<typeof createApp>;
   readonly db: ReturnType<typeof drizzle>;
   readonly sent: ReadonlyArray<EmailMessage>;
+  readonly sentPush: ReadonlyArray<Parameters<PushSenderService["send"]>[0]>;
   readonly post: (path: string, body: JsonValue, cookie?: string) => Promise<Response>;
   readonly signUpAndVerify: (email: string, password: string, name: string) => Promise<string>;
   readonly userIdFor: (email: string) => Promise<string>;
@@ -51,6 +53,7 @@ const scannerFake = Layer.succeed(FileScanner, {
  * (e.g. RATE_LIMIT_MAX) while falling back to the environment for the rest.
  */
 type HarnessOptions = {
+  readonly pushSender?: PushSenderService;
   readonly rateLimit?: { readonly enabled: boolean };
   /**
    * Pin the Effect `Clock` the app reads "now" from. Tests that assert on
@@ -83,6 +86,17 @@ export const createTestHarness = async (
   // an unlistened pool turns into a vitest "unhandled error" (flaky CI).
   db.$client.on("error", () => {});
   const sent: EmailMessage[] = [];
+  const sentPush: Array<Parameters<PushSenderService["send"]>[0]> = [];
+  const capturingPushSender = Layer.succeed(
+    PushSender,
+    authOpts?.pushSender ?? {
+      publicKey: "test-public-key",
+      send: (input) =>
+        Effect.sync(() => {
+          sentPush.push(input);
+        }),
+    },
+  );
   const record = (message: EmailMessage): void => {
     sent.push(message);
   };
@@ -93,6 +107,7 @@ export const createTestHarness = async (
 
   const baseLayer = makeAppLayer(databaseLayerFromUrl(pg.url), {
     email: capturingEmailSender,
+    push: capturingPushSender,
     storage: FileStorageFakeLive,
     scanner: scannerFake,
     geocoder: GeocoderFakeLive,
@@ -186,5 +201,16 @@ export const createTestHarness = async (
     await pg.stop();
   };
 
-  return { app, db, sent, post, signUpAndVerify, userIdFor, promoteToAdmin, otpFor, dispose };
+  return {
+    app,
+    db,
+    sent,
+    sentPush,
+    post,
+    signUpAndVerify,
+    userIdFor,
+    promoteToAdmin,
+    otpFor,
+    dispose,
+  };
 };
