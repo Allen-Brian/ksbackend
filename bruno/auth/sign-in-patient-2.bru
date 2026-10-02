@@ -1,0 +1,43 @@
+meta {
+  name: Sign in as the second demo patient (Bernard Fon)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/auth/sign-in/email
+  body: json
+  auth: none
+}
+
+headers {
+  Origin: {{baseUrl}}
+}
+
+body:json {
+  {
+    "email": "{{demoPatient2Email}}",
+    "password": "{{demoPatient2Password}}"
+  }
+}
+
+script:post-response {
+  const token = res.headers["set-auth-token"];
+  if (token) {
+    bru.setVar("token", token);
+    bru.setVar("patient2Token", token);
+  }
+}
+
+tests {
+  test("signed in as the second demo patient — token captured automatically", function () {
+    expect(res.status).to.equal(200);
+    expect(res.headers["set-auth-token"]).to.be.a("string");
+  });
+}
+
+docs {
+  A second patient with a completed profile. Use him to show two people contending
+  for the same slot: hold a slot as the first patient, sign in here, then try to hold
+  the same slot again — 409 SLOT_UNAVAILABLE.
+}

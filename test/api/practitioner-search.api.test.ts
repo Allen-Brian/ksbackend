@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import { profession } from "@/db/schema/profession";
 import { createTestHarness, type TestHarness } from "../support/app-harness";
 
@@ -266,5 +268,69 @@ describe("practitioner search API (real DB)", () => {
   it("requires a session", async () => {
     const res = await harness.app.request("/v1/practitioners");
     expect(res.status).toBe(401);
+  });
+
+  // "Practitioners near the patient" — the centre is a point the caller supplies
+  // (the patient's, not the device's), so a caregiver in Paris searches Douala.
+  describe("radius search", () => {
+    const DOUALA = "lat=4.05&lng=9.70";
+
+    beforeAll(async () => {
+      const at = async (id: string, latitude: number, longitude: number): Promise<void> => {
+        await harness.db
+          .update(practitionerProfile)
+          .set({ latitude, longitude })
+          .where(eq(practitionerProfile.id, id));
+      };
+      await at(ids.cardioDouala ?? "", 4.05, 9.7);
+      // ~190 km north-east of Douala.
+      await at(ids.cardioBafoussam ?? "", 5.48, 10.42);
+      // pediatricsYaounde deliberately keeps NULL coordinates.
+    });
+
+    it("keeps only practitioners inside the radius, nearest first", async () => {
+      const near = await json<SearchBody>(
+        await search(harness, searcher, `?${DOUALA}&radiusKm=10`),
+      );
+      expect(near.data.map((c) => c.id)).toEqual([ids.cardioDouala]);
+      expect(near.meta.total).toBe(1);
+      expect(near.data[0]?.distanceKm).toBeLessThan(1);
+
+      const wide = await json<SearchBody>(
+        await search(harness, searcher, `?${DOUALA}&radiusKm=200`),
+      );
+      // Distance is the default order for a radius search: Douala, then Bafoussam.
+      expect(wide.data.map((c) => c.id)).toEqual([ids.cardioDouala, ids.cardioBafoussam]);
+      expect(wide.data[1]?.distanceKm).toBeGreaterThan(150);
+    });
+
+    it("excludes practitioners with no coordinates — but only when a radius is given", async () => {
+      const bounded = await json<SearchBody>(
+        await search(harness, searcher, `?${DOUALA}&radiusKm=200`),
+      );
+      expect(bounded.data.map((c) => c.id)).not.toContain(ids.pediatricsYaounde);
+
+      const unbounded = await json<SearchBody>(await search(harness, searcher, `?${DOUALA}`));
+      expect(unbounded.data.map((c) => c.id)).toContain(ids.pediatricsYaounde);
+      expect(unbounded.meta.total).toBe(3);
+    });
+
+    it("honours an explicit sort instead of defaulting to distance", async () => {
+      const byFee = await json<SearchBody>(
+        await search(harness, searcher, `?${DOUALA}&radiusKm=200&sort=fee&order=desc`),
+      );
+      expect(byFee.data.map((c) => c.consultationFeeXaf)).toEqual([25000, 15000]);
+    });
+
+    it("rejects a radius without a centre point (422)", async () => {
+      const res = await search(harness, searcher, "?radiusKm=10");
+      expect(res.status).toBe(422);
+      const body = await json<{ error: { code: string; details: ReadonlyArray<unknown> } }>(res);
+      expect(body.error.code).toBe("VALIDATION_FAILED");
+      expect(body.error.details).toContainEqual({
+        path: "radiusKm",
+        message: "radiusKm requires lat & lng.",
+      });
+    });
   });
 });

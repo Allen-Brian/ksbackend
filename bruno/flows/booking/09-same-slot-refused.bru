@@ -1,0 +1,43 @@
+meta {
+  name: 9 · Bernard wants the same slot — refused
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/v1/appointments
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "practitionerId": "{{practitionerId}}",
+    "slotKey": "{{slotKey}}",
+    "startsAt": "{{slotStartsAt}}",
+    "consultationType": "in_person",
+    "offeringId": "{{offeringId}}",
+    "locationId": {{slotLocationIdJson}},
+    "preferredLanguage": "fr"
+  }
+}
+
+script:post-response {
+  // Bernard is done — the rest of the story continues as Claire.
+  bru.setVar("token", bru.getVar("patientToken"));
+}
+
+tests {
+  test("409 SLOT_UNAVAILABLE — Claire's appointment keeps the time", function () {
+    expect(res.status).to.equal(409);
+    expect(res.body.error.code).to.equal("SLOT_UNAVAILABLE");
+    expect(res.body.error.message).to.be.a("string");
+  });
+}
+
+docs {
+  The same slot key and start time Claire just confirmed, sent by a different account.
+  The API re-derives the schedule, sees the time is taken, and answers 409 with a
+  localised message the app can show as-is. Had both requests arrived at the same
+  instant, Postgres's exclusion constraint would still let exactly one through.
+}

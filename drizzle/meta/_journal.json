@@ -85,6 +85,13 @@
       "when": 1789924153024,
       "tag": "0011_quick_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789934371582,
+      "tag": "0012_curious_pride",
+      "breakpoints": true
     }
   ]
 }

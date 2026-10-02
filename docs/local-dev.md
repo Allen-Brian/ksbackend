@@ -144,7 +144,7 @@ bun run db:seed      # demo patient, doctor, admin + a cast of verified practiti
 ```
 
 To verify the API in the Bruno app, open `flows/demo`, use the folder menu to run the whole
-folder, and keep the requests in sequence order. You should see 12 green requests and 12 passing
+folder, and keep the requests in sequence order. You should see 13 green requests and 13 passing
 tests. The flow captures each sign-in token and the selected practitioner's ID for the later
 requests, so it requires no manual variable entry. The equivalent headless check is:
 
@@ -155,9 +155,11 @@ bun run bruno:demo   # also writes bruno-report.html
 `flows/booking` is the second story: the appointment lifecycle. The doctor signs in so the flow
 can learn her practitioner id, then the patient signs in, opens her profile, reads the next two
 weeks of open slots, **holds** the first one (`POST /v1/appointments` → `held`), **confirms** it,
-sees it under `GET /v1/me/appointments`, the doctor sees it on that day's
-`GET /v1/practitioners/me/agenda`, and finally the patient cancels — so the seed data is left
-exactly as it was and the folder can be re-run at will. Expect 13 green requests:
+then a **second patient** (Bernard Fon — `DEMO_PATIENT_2_*`) tries the very same slot and is
+refused with `409 SLOT_UNAVAILABLE`. Back as the first patient the booking is under
+`GET /v1/me/appointments`, the doctor sees it on that day's `GET /v1/practitioners/me/agenda`,
+and finally the patient cancels — so the seed data is left exactly as it was and the folder can
+be re-run at will. Expect 15 green requests (a "green" 409 in step 9 is the point):
 
 ```bash
 bun run bruno:booking   # same report file
@@ -170,8 +172,9 @@ you want when running an individual request.
 - **No token copying.** The sign-in requests in `bruno/auth/` (and inside the demo flow) store
   the bearer token from better-auth's `set-auth-token` response header; every `/v1` request
   inherits it from the collection-level auth. Sign in as a different account to switch identity.
-- **`bruno/flows/demo/`** is a curated, numbered story — patient signs in → searches → opens a
-  doctor → availability → reviews → doctor side → admin verification queue. One click on the
+- **`bruno/flows/demo/`** is a curated, numbered story — patient signs in → searches → finds
+  doctors **near the patient** (`lat`/`lng` + `radiusKm`) → opens a doctor → availability →
+  reviews → doctor side → admin verification queue. One click on the
   folder in Bruno's Runner (or headless: `bun run bruno:demo`, which writes `bruno-report.html`,
   a shareable run report). **`bruno/flows/booking/`** is the same idea for booking: hold →
   confirm → both sides see it → cancel (`bun run bruno:booking`).

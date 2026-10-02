@@ -1,0 +1,39 @@
+meta {
+  name: 4 · Doctors near the patient — within 25 km of Douala
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/v1/practitioners?lat=4.05&lng=9.70&radiusKm=25
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("only nearby doctors come back, nearest first", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.data).to.be.an("array").that.is.not.empty;
+    const distances = res.body.data.map((card) => card.distanceKm);
+    distances.forEach(function (km) {
+      expect(km).to.be.a("number");
+      expect(km).to.be.at.most(25);
+    });
+    expect(distances).to.deep.equal(distances.slice().sort((a, b) => a - b));
+  });
+}
+
+docs {
+  "Practitioners near me" — except the centre is the PATIENT's location, not the
+  caller's device. A caregiver in Paris searching for her mother in Douala sends
+  Douala's coordinates: `lat`/`lng` is the centre, `radiusKm` the cut-off.
+
+  Adding `radiusKm` makes `distance` the default sort, so the nearest doctor is
+  first and every card carries `distanceKm`. The Yaoundé and Bafoussam doctors in
+  the seed data (about 200 km away) are absent; widen to `radiusKm=200` and they
+  appear. Drop `radiusKm` entirely and you get every verified doctor, still with
+  `distanceKm` filled in — distance as information rather than as a filter.
+
+  A practitioner whose address has never been geocoded has no coordinates and is
+  therefore left out of a radius search; without a radius they are still listed.
+}

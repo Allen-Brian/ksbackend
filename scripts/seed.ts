@@ -170,15 +170,18 @@ const ensureProfile = async (
     .onConflictDoNothing({ target: profile.userId });
 };
 
-const ensurePatientProfile = async (userId: string): Promise<void> => {
+const ensurePatientProfile = async (
+  userId: string,
+  emergencyContact = { name: "Emmanuel Tchamba", phone: "+237655000000", relationship: "spouse" },
+): Promise<void> => {
   await db
     .insert(patientProfile)
     .values({
       id: uuidv7(),
       userId,
-      emergencyContactName: "Emmanuel Tchamba",
-      emergencyContactPhone: "+237655000000",
-      emergencyContactRelationship: "spouse",
+      emergencyContactName: emergencyContact.name,
+      emergencyContactPhone: emergencyContact.phone,
+      emergencyContactRelationship: emergencyContact.relationship,
       createdAt: seedInstant,
       updatedAt: seedInstant,
     })
@@ -564,6 +567,31 @@ const seedDemoUsers = async (): Promise<void> => {
   });
   await ensurePatientProfile(patientId);
   console.log(`✓ seeded demo patient ${patientEmail}`);
+
+  // A second patient lets the booking demo show two people contending for one slot.
+  const patient2Email = process.env.DEMO_PATIENT_2_EMAIL;
+  const patient2Password = process.env.DEMO_PATIENT_2_PASSWORD;
+  if (patient2Email && patient2Password) {
+    const patient2Id = await ensureAccountUser({
+      email: patient2Email,
+      password: patient2Password,
+      name: "Bernard Fon",
+      role: "patient",
+    });
+    await ensureProfile(patient2Id, {
+      surname: "Fon",
+      givenNames: "Bernard",
+      phone: "+237655000002",
+    });
+    await ensurePatientProfile(patient2Id, {
+      name: "Solange Fon",
+      phone: "+237655000003",
+      relationship: "sister",
+    });
+    console.log(`✓ seeded second demo patient ${patient2Email}`);
+  } else {
+    console.log("• DEMO_PATIENT_2_* not set — skipping the second demo patient");
+  }
 
   const signInDoctor: DemoDoctor = {
     email: doctorEmail,

@@ -1,5 +1,5 @@
 meta {
-  name: 12 · Back to the patient
+  name: 12 · Switch sides — the doctor signs in
   type: http
   seq: 12
 }
@@ -16,8 +16,8 @@ headers {
 
 body:json {
   {
-    "email": "{{demoPatientEmail}}",
-    "password": "{{demoPatientPassword}}"
+    "email": "{{demoDoctorEmail}}",
+    "password": "{{demoDoctorPassword}}"
   }
 }
 
@@ -25,12 +25,12 @@ script:post-response {
   const token = res.headers["set-auth-token"];
   if (token) {
     bru.setVar("token", token);
-    bru.setVar("patientToken", token);
+    bru.setVar("doctorToken", token);
   }
 }
 
 tests {
-  test("signed in as the demo patient again", function () {
+  test("signed in as the demo doctor", function () {
     expect(res.status).to.equal(200);
     expect(res.headers["set-auth-token"]).to.be.a("string");
   });

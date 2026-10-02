@@ -21,7 +21,7 @@ export type PractitionerSearchParams = {
   readonly page: number;
   readonly pageSize: number;
   readonly order?: SortDirection | undefined;
-  readonly sort: PractitionerSortField;
+  readonly sort?: PractitionerSortField | undefined;
   readonly specialty?: string | undefined;
   readonly city?: string | undefined;
   readonly language?: string | undefined;
@@ -32,6 +32,7 @@ export type PractitionerSearchParams = {
   readonly q?: string | undefined;
   readonly lat?: number | undefined;
   readonly lng?: number | undefined;
+  readonly radiusKm?: number | undefined;
 };
 
 /** A result card with the photo resolved to a presigned URL. */
@@ -111,6 +112,13 @@ export const PractitionerSearchServiceLive = Layer.effect(
           if (hasLat !== hasLng) {
             issues.push({ path: "lat", message: "lat and lng must be provided together." });
           }
+          if (params.radiusKm !== undefined && !(hasLat && hasLng)) {
+            issues.push({ path: "radiusKm", message: "radiusKm requires lat & lng." });
+          }
+          // A radius search is a "near this point" search, so distance is the
+          // natural order unless the caller asked for something else.
+          const sortField: PractitionerSortField =
+            params.sort ?? (params.radiusKm !== undefined ? "distance" : "recency");
           if (
             params.feeMin !== undefined &&
             params.feeMax !== undefined &&
@@ -121,7 +129,7 @@ export const PractitionerSearchServiceLive = Layer.effect(
               message: "feeMin must be less than or equal to feeMax.",
             });
           }
-          if (params.sort === "distance" && !(hasLat && hasLng)) {
+          if (sortField === "distance" && !(hasLat && hasLng)) {
             issues.push({ path: "sort", message: "Sorting by distance requires lat & lng." });
           }
           if (issues.length > 0) return yield* Effect.fail(new ValidationFailed({ issues }));
@@ -140,13 +148,14 @@ export const PractitionerSearchServiceLive = Layer.effect(
             professionId: params.professionId,
             q: params.q,
             origin,
+            radiusKm: params.radiusKm,
           };
-          const direction = params.order ?? PRACTITIONER_SORT_DEFAULT_DIRECTION[params.sort];
-          const sort: PractitionerSort = { field: params.sort, direction };
+          const direction = params.order ?? PRACTITIONER_SORT_DEFAULT_DIRECTION[sortField];
+          const sort: PractitionerSort = { field: sortField, direction };
           const now = new Date(yield* Clock.currentTimeMillis);
 
           const requestedOffset = offsetOf(params.page, params.pageSize);
-          const availabilitySort = params.sort === "availability";
+          const availabilitySort = sortField === "availability";
           const { rows, total } = yield* repo.search(
             criteria,
             sort,

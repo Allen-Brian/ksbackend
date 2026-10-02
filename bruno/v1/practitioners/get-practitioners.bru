@@ -25,4 +25,17 @@ params:query {
   ~q: 
   ~lat: 
   ~lng: 
+  ~radiusKm: 
+}
+
+docs {
+  The discovery list. Every parameter is optional and combines freely.
+
+  Near a patient: `lat` + `lng` set the centre (the PATIENT's location — for a
+  diaspora caregiver that is not the device's), which fills `distanceKm` on every
+  card. Add `radiusKm` (1–200) to keep only practitioners inside that circle; it
+  also makes `distance` the default sort. `radiusKm` without `lat`/`lng` is a 422,
+  and practitioners with no geocoded coordinates drop out of a radius search.
+
+  Try: `?lat=4.05&lng=9.70&radiusKm=25` against the seeded data.
 }

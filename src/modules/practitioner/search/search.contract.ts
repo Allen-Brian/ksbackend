@@ -11,10 +11,11 @@ import { offsetPaginated, OffsetQuery } from "@/http/schemas";
  * query schema must stay a plain object for OpenAPI parameter generation.
  */
 export const PractitionerSearchQuery = OffsetQuery.extend({
-  sort: z
-    .enum(PRACTITIONER_SORT_FIELDS)
-    .default("recency")
-    .openapi({ description: "Sort key (validated against the allow-list).", example: "rating" }),
+  sort: z.enum(PRACTITIONER_SORT_FIELDS).optional().openapi({
+    description:
+      "Sort key (validated against the allow-list). Defaults to `distance` when `radiusKm` is given, otherwise `recency`.",
+    example: "rating",
+  }),
   specialty: z.string().max(120).optional().openapi({
     description: "Clinical specialty (case-insensitive contains).",
     example: "Cardiology",
@@ -58,14 +59,18 @@ export const PractitionerSearchQuery = OffsetQuery.extend({
     .optional()
     .openapi({ description: "Free text over name, specialty, and location.", example: "cardio" }),
   lat: z.coerce.number().min(-90).max(90).optional().openapi({
-    description: "Searcher latitude — with `lng`, computes + enables sort by distance.",
+    description:
+      "Latitude of the point to measure from — the PATIENT's location, which for a diaspora caregiver is not the device's. With `lng` it computes `distanceKm` and enables sort by distance.",
+    example: 4.05,
   }),
-  lng: z.coerce
-    .number()
-    .min(-180)
-    .max(180)
-    .optional()
-    .openapi({ description: "Searcher longitude (must accompany `lat`)." }),
+  lng: z.coerce.number().min(-180).max(180).optional().openapi({
+    description: "Longitude of that same point (must accompany `lat`).",
+    example: 9.7,
+  }),
+  radiusKm: z.coerce.number().min(1).max(200).optional().openapi({
+    description: "Keep only practitioners within this many km of `lat`/`lng`.",
+    example: 10,
+  }),
 });
 
 const PractitionerCard = z

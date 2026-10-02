@@ -33,8 +33,35 @@ export const PRACTITIONER_SORT_DEFAULT_DIRECTION = {
   recency: "desc",
 } satisfies Record<PractitionerSortField, SortDirection>;
 
-/** The searcher's location, used to compute + sort by distance. */
+/** The point distance is measured from — the patient's location, not the caller's. */
 export type GeoPoint = { readonly latitude: number; readonly longitude: number };
+
+/** Kilometres per degree of latitude — the bounding box that pre-filters a radius search. */
+const KM_PER_DEGREE = 111.045;
+
+/**
+ * A lat/lng box that fully contains the circle of `radiusKm` around `origin`.
+ * Used as a cheap, index-backed pre-filter before the exact haversine test.
+ * `longitude` is null when the box would wrap the antimeridian (or the poles
+ * make it meaningless) — the caller then relies on the distance test alone.
+ */
+export const boundingBox = (origin: GeoPoint, radiusKm: number) => {
+  const latitudeDelta = radiusKm / KM_PER_DEGREE;
+  const cosLatitude = Math.cos((origin.latitude * Math.PI) / 180);
+  const longitudeDelta =
+    Math.abs(cosLatitude) < 0.01
+      ? Number.POSITIVE_INFINITY
+      : radiusKm / (KM_PER_DEGREE * cosLatitude);
+  const min = origin.longitude - longitudeDelta;
+  const max = origin.longitude + longitudeDelta;
+  return {
+    latitude: {
+      min: Math.max(-90, origin.latitude - latitudeDelta),
+      max: Math.min(90, origin.latitude + latitudeDelta),
+    },
+    longitude: min < -180 || max > 180 ? null : { min, max },
+  };
+};
 
 /** Every filter is optional and independent — so they combine and clear freely. */
 export type PractitionerSearchCriteria = {
@@ -47,6 +74,8 @@ export type PractitionerSearchCriteria = {
   readonly professionId?: string | undefined;
   readonly q?: string | undefined;
   readonly origin?: GeoPoint | undefined;
+  /** With `origin`, keeps only practitioners within this many km of it. */
+  readonly radiusKm?: number | undefined;
 };
 
 /** The lightweight card projection the repo returns (photo is presigned by the service). */

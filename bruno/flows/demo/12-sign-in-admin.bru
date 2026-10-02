@@ -1,7 +1,7 @@
 meta {
-  name: Sign in — demo patient
+  name: 12 · Behind the scenes — an admin signs in
   type: http
-  seq: 1
+  seq: 12
 }
 
 post {
@@ -16,25 +16,21 @@ headers {
 
 body:json {
   {
-    "email": "{{demoPatientEmail}}",
-    "password": "{{demoPatientPassword}}"
+    "email": "{{adminEmail}}",
+    "password": "{{adminPassword}}"
   }
-}
-
-vars:pre-request {
-  baseUrl: http://localhost:5000
 }
 
 script:post-response {
   const token = res.headers["set-auth-token"];
   if (token) {
     bru.setVar("token", token);
-    bru.setVar("patientToken", token);
+    bru.setVar("adminToken", token);
   }
 }
 
 tests {
-  test("signed in as the demo patient", function () {
+  test("signed in as the admin", function () {
     expect(res.status).to.equal(200);
     expect(res.headers["set-auth-token"]).to.be.a("string");
   });

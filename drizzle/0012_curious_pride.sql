@@ -1,0 +1,1 @@
+CREATE INDEX "practitioner_profile_coordinates_idx" ON "practitioner_profile" USING btree ("latitude","longitude");

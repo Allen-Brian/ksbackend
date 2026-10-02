@@ -19,10 +19,11 @@ import { availabilitySlot } from "@/db/schema/availability-slot";
 import { practitionerProfile } from "@/db/schema/practitioner-profile";
 import { profession } from "@/db/schema/profession";
 import { profile } from "@/db/schema/profile";
-import type {
-  PractitionerCardRow,
-  PractitionerSearchCriteria,
-  PractitionerSort,
+import {
+  boundingBox,
+  type PractitionerCardRow,
+  type PractitionerSearchCriteria,
+  type PractitionerSort,
 } from "@/domain/practitioner/search";
 
 export type SearchPage = { readonly limit: number; readonly offset: number };
@@ -94,6 +95,24 @@ export const PractitionerSearchRepoLive = Layer.effect(
           eq(practitionerProfile.verificationStatus, "verified"),
           eq(profession.active, true),
         ];
+        // "Near this point": an index-backed bounding box narrows the candidates,
+        // then the exact haversine trims the corners of the box to a circle.
+        // Practitioners with no coordinates fall out (NULL comparisons are false) —
+        // we can't claim they're nearby.
+        if (origin !== undefined && criteria.radiusKm !== undefined) {
+          const box = boundingBox(origin, criteria.radiusKm);
+          filters.push(
+            gte(practitionerProfile.latitude, box.latitude.min),
+            lte(practitionerProfile.latitude, box.latitude.max),
+          );
+          if (box.longitude !== null) {
+            filters.push(
+              gte(practitionerProfile.longitude, box.longitude.min),
+              lte(practitionerProfile.longitude, box.longitude.max),
+            );
+          }
+          filters.push(sql`${distanceExpr} <= ${criteria.radiusKm}`);
+        }
         if (criteria.specialty !== undefined) {
           filters.push(fuzzy(practitionerProfile.specialty, criteria.specialty));
         }
