@@ -15,6 +15,8 @@ export type CareSubject =
 
 export type Appointment = {
   readonly id: string;
+  readonly revision: number;
+  readonly scheduleTimezone: string;
   readonly practitionerProfileId: string;
   readonly bookerUserId: string;
   readonly subject: CareSubject;

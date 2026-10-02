@@ -34,6 +34,7 @@ type Slot = {
 type AppointmentBody = {
   readonly id: string;
   readonly status: string;
+  readonly revision: number;
   readonly startsAt: string;
   readonly endsAt: string;
   readonly holdExpiresAt: string | null;
@@ -766,6 +767,53 @@ describe("appointments API (real DB)", () => {
       await request(harness, "GET", `/v1/appointments/${id}`, patientA),
     );
     expect(shown.status).toBe("cancelled");
+  });
+
+  it("serializes simultaneous confirm retries and cannot resurrect a cancelled appointment", async () => {
+    const published = await json<{ id: string }>(
+      await harness.post(
+        "/v1/practitioners/me/availability",
+        {
+          startsAt: "2026-10-06T17:00:00.000Z",
+          endsAt: "2026-10-06T17:30:00.000Z",
+          consultationTypes: ["video"],
+        },
+        clinic.doctorCookie,
+      ),
+    );
+    const explicit = slotAt(
+      await slotsFor(harness, patientB, clinic.doctorId),
+      "2026-10-06T17:00:00.000Z",
+    );
+    const held = await json<AppointmentBody>(
+      await hold(patientB, explicit, {
+        consultationType: "video",
+        offeringId: clinic.videoOfferingId,
+      }),
+    );
+    const confirmations = await Promise.all([
+      transition(patientB, held.id, "confirm"),
+      transition(patientB, held.id, "confirm"),
+    ]);
+    expect(confirmations.map((response) => response.status)).toEqual([200, 200]);
+    const confirmed = await json<AppointmentBody>(confirmations[0] ?? new Response());
+    expect(confirmed.revision).toBe(held.revision + 1);
+    const races = await Promise.all([
+      transition(patientB, held.id, "cancel"),
+      transition(patientB, held.id, "confirm"),
+    ]);
+    expect(races[0]?.status).toBe(200);
+    const final = await json<AppointmentBody>(
+      await request(harness, "GET", `/v1/appointments/${held.id}`, patientB),
+    );
+    expect(final.status).toBe("cancelled");
+    expect(final.revision).toBe(confirmed.revision + 1);
+    const available = await slotsFor(harness, patientB, clinic.doctorId);
+    expect(
+      available
+        .filter((slot) => slot.key === `explicit:${published.id}`)
+        .map((slot) => slot.startsAt),
+    ).toEqual([explicit.startsAt]);
   });
 
   it("agenda is practitioner-only and defaults to today", async () => {

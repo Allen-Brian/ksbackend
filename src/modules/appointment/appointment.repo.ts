@@ -1,6 +1,6 @@
 import { SqlClient, SqlError } from "@effect/sql";
 import * as PgDrizzle from "@effect/sql-drizzle/Pg";
-import { and, asc, count, desc, eq, gt, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Context, Effect, Layer, Schema } from "effect";
 import { appointment } from "@/db/schema/appointment";
@@ -30,6 +30,8 @@ const subjectColumns = (subject: CareSubject) => ({
 
 const toDomain = (row: Row): Appointment => ({
   id: row.id,
+  revision: row.revision,
+  scheduleTimezone: row.scheduleTimezone,
   practitionerProfileId: row.practitionerProfileId,
   bookerUserId: row.bookerUserId,
   subject: toSubject(row),
@@ -106,6 +108,7 @@ export type AgendaEntry = {
 export interface AppointmentRepoService {
   readonly idExists: (id: string) => Effect.Effect<boolean, SqlError.SqlError>;
   readonly findById: (id: string) => Effect.Effect<Appointment | undefined, SqlError.SqlError>;
+  readonly findForUpdate: (id: string) => Effect.Effect<Appointment | undefined, SqlError.SqlError>;
   /** Whether `caregiverUserId` holds an ACTIVE caregiver link to the account `subjectUserId`. */
   readonly hasActiveLinkToUser: (
     caregiverUserId: string,
@@ -183,6 +186,15 @@ export const AppointmentRepoLive = Layer.effect(
           .from(appointment)
           .where(eq(appointment.id, id))
           .limit(1)
+          .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
+
+      findForUpdate: (id) =>
+        db
+          .select()
+          .from(appointment)
+          .where(eq(appointment.id, id))
+          .limit(1)
+          .for("update")
           .pipe(Effect.map((rows) => (rows[0] ? toDomain(rows[0]) : undefined))),
 
       hasActiveLinkToUser: (caregiverUserId, subjectUserId) =>
@@ -289,6 +301,7 @@ export const AppointmentRepoLive = Layer.effect(
           .update(appointment)
           .set({
             status,
+            revision: sql`${appointment.revision} + 1`,
             // Cleared once confirmed; kept on expired/cancelled rows for the audit trail.
             holdExpiresAt: status === "confirmed" ? null : undefined,
             updatedAt: now,

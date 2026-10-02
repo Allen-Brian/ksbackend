@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { consultationOffering } from "./consultation-offering";
 import { dependent } from "./dependent";
@@ -34,6 +34,8 @@ export const appointment = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     // The canonical slot identity the client selected (rule:/exception:/explicit:).
+    scheduleTimezone: text("schedule_timezone").notNull().default("Africa/Douala"),
+    revision: integer("revision").notNull().default(0),
     slotKey: text("slot_key").notNull(),
     preferredLanguage: text("preferred_language").notNull(),
     status: appointmentStatusEnum("status").notNull().default("held"),

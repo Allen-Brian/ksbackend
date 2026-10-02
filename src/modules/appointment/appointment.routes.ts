@@ -26,6 +26,7 @@ const toSubject = (subject: CareSubject) => ({
 // The service already reports the effective status (lazy expiry applied).
 const toResponse = (a: Appointment) => ({
   id: a.id,
+  revision: a.revision,
   practitionerId: a.practitionerProfileId,
   status: a.status,
   startsAt: a.startsAt.toISOString(),

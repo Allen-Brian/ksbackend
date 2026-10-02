@@ -360,7 +360,7 @@ export const AppointmentServiceLive = Layer.effect(
 
     const ownedByBooker = (userId: string, id: string) =>
       repo
-        .findById(id)
+        .findForUpdate(id)
         .pipe(
           Effect.flatMap((found) =>
             found === undefined || found.bookerUserId !== userId
@@ -370,62 +370,61 @@ export const AppointmentServiceLive = Layer.effect(
         );
 
     const confirm: AppointmentServiceService["confirm"] = (userId, id) =>
-      Effect.gen(function* () {
-        const found = yield* ownedByBooker(userId, id);
-        const current = yield* now;
-        const status = effectiveStatus(found, current);
-        // Idempotent: a retried confirm after a dropped response is a no-op.
-        if (status === "confirmed") return found;
-        if (status === "expired") {
-          if (found.status === "held") yield* repo.setStatus(id, "expired", current);
-          return yield* Effect.fail(new HoldExpired({ appointmentId: id }));
-        }
-        if (status === "cancelled") {
-          return yield* Effect.fail(new AppointmentStateInvalid({ current: status }));
-        }
-        // Consent can be withdrawn between hold and confirm.
-        if (found.subject.kind !== "self") yield* requireSubject(userId, found.subject);
-        const slotId = explicitSlotId(found.slotKey);
-        const confirmed = yield* sql.withTransaction(
+      sql
+        .withTransaction(
           Effect.gen(function* () {
-            if (slotId !== undefined && !(yield* repo.markExplicitSlotBooked(slotId))) {
-              // The doctor withdrew the slot meanwhile: release the hold rather
-              // than leave it blocking the time until it expires.
-              yield* repo.setStatus(id, "cancelled", current);
-              return undefined;
+            const found = yield* ownedByBooker(userId, id);
+            const current = yield* now;
+            const status = effectiveStatus(found, current);
+            if (status === "confirmed") return { appointment: found };
+            if (status === "expired") {
+              if (found.status === "held") yield* repo.setStatus(id, "expired", current);
+              return { error: new HoldExpired({ appointmentId: id }) };
             }
-            return yield* repo.setStatus(id, "confirmed", current);
+            if (status === "cancelled") {
+              return yield* Effect.fail(new AppointmentStateInvalid({ current: status }));
+            }
+            if (found.subject.kind !== "self") yield* requireSubject(userId, found.subject);
+            const slotId = explicitSlotId(found.slotKey);
+            if (slotId !== undefined && !(yield* repo.markExplicitSlotBooked(slotId))) {
+              yield* repo.setStatus(id, "cancelled", current);
+              return { error: new SlotUnavailable({ slotKey: found.slotKey }) };
+            }
+            return { appointment: yield* repo.setStatus(id, "confirmed", current) };
           }),
+        )
+        .pipe(
+          Effect.flatMap((result) =>
+            "error" in result ? Effect.fail(result.error) : Effect.succeed(result.appointment),
+          ),
         );
-        return confirmed === undefined
-          ? yield* Effect.fail(new SlotUnavailable({ slotKey: found.slotKey }))
-          : confirmed;
-      });
 
     const cancel: AppointmentServiceService["cancel"] = (userId, id) =>
-      Effect.gen(function* () {
-        const found = yield* ownedByBooker(userId, id);
-        const current = yield* now;
-        const status = effectiveStatus(found, current);
-        if (status === "cancelled") return found;
-        if (status === "expired") {
-          return yield* Effect.fail(new AppointmentStateInvalid({ current: status }));
-        }
-        if (!withinCancellationWindow(found.startsAt, current, cancelCutoffHours)) {
-          return yield* Effect.fail(
-            new CancellationWindowClosed({ cutoffHours: cancelCutoffHours }),
+      sql.withTransaction(
+        Effect.gen(function* () {
+          const found = yield* ownedByBooker(userId, id);
+          const current = yield* now;
+          const status = effectiveStatus(found, current);
+          if (status === "cancelled") return found;
+          if (status === "expired") {
+            return yield* Effect.fail(new AppointmentStateInvalid({ current: status }));
+          }
+          if (!withinCancellationWindow(found.startsAt, current, cancelCutoffHours)) {
+            return yield* Effect.fail(
+              new CancellationWindowClosed({ cutoffHours: cancelCutoffHours }),
+            );
+          }
+          const slotId = explicitSlotId(found.slotKey);
+          return yield* sql.withTransaction(
+            Effect.gen(function* () {
+              if (status === "confirmed" && slotId !== undefined) {
+                yield* repo.reopenExplicitSlot(slotId);
+              }
+              return yield* repo.setStatus(id, "cancelled", current);
+            }),
           );
-        }
-        const slotId = explicitSlotId(found.slotKey);
-        return yield* sql.withTransaction(
-          Effect.gen(function* () {
-            if (status === "confirmed" && slotId !== undefined) {
-              yield* repo.reopenExplicitSlot(slotId);
-            }
-            return yield* repo.setStatus(id, "cancelled", current);
-          }),
-        );
-      });
+        }),
+      );
 
     const get: AppointmentServiceService["get"] = (userId, id) =>
       Effect.gen(function* () {

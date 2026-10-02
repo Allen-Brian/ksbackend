@@ -73,6 +73,7 @@ const CareSubjectResponse = z
 export const AppointmentResponse = z
   .object({
     id: z.uuid(),
+    revision: z.number().int().nonnegative(),
     practitionerId: z.uuid(),
     status,
     startsAt: z
